@@ -1,0 +1,89 @@
+body {
+  width: 320px;
+  padding: 12px;
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 12px;
+  background: #f6f6ef;
+  color: #000;
+  margin: 0;
+}
+
+.header h1 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #ff6600;
+}
+
+.section {
+  margin-bottom: 12px;
+}
+
+.section label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: bold;
+  font-size: 11px;
+}
+
+.section input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.actions {
+  text-align: right;
+  margin-bottom: 12px;
+}
+
+.actions button {
+  background: #ff6600;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 2px;
+}
+
+.actions button:hover {
+  background: #e65c00;
+}
+
+#status {
+  color: #008000;
+  font-size: 11px;
+  height: 14px;
+}
+
+h2 {
+  font-size: 12px;
+  margin: 0 0 6px 0;
+  color: #ff6600;
+}
+
+#statsContent ul, #recContent ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+#statsContent li, #recContent li {
+  margin-bottom: 4px;
+}
+
+#recContent a {
+  color: #000;
+  text-decoration: none;
+}
+
+#recContent a:hover {
+  text-decoration: underline;
+}
+
+#recContent small {
+  color: #666;
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h1>HN Reader</h1>
+  </div>
+
+  <div class="section">
+    <label>Server URL</label>
+    <input type="text" id="serverUrl" placeholder="http://localhost:8080" />
+  </div>
+
+  <div class="actions">
+    <button id="saveBtn">Save Settings</button>
+  </div>
+
+  <div class="section" id="statsSection" style="display:none;">
+    <h2>Your Stats</h2>
+    <div id="statsContent"></div>
+  </div>
+
+  <div class="section" id="recSection" style="display:none;">
+    <h2>Recommendations</h2>
+    <div id="recContent"></div>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
