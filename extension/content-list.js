@@ -34,7 +34,9 @@
   }
 
   async function fetchSummary(hnId, url, title) {
-    return await sendToBg('summarizeArticle', { hn_id: hnId, url: url, title: title });
+    const result = await chrome.storage.local.get(['hn_reader_language']);
+    const lang = result['hn_reader_language'] || 'zh';
+    return await sendToBg('summarizeArticle', { hn_id: hnId, url: url, title: title, lang: lang });
   }
 
   function createSummaryCard(data, hnId) {

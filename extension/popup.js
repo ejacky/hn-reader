@@ -1,7 +1,9 @@
 const SERVER_URL_KEY = 'hn_reader_server_url';
+const LANGUAGE_KEY = 'hn_reader_language';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const serverInput = document.getElementById('serverUrl');
+  const languageSelect = document.getElementById('language');
   const saveBtn = document.getElementById('saveBtn');
   const status = document.getElementById('status');
   const statsSection = document.getElementById('statsSection');
@@ -9,12 +11,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const recSection = document.getElementById('recSection');
   const recContent = document.getElementById('recContent');
 
-  const result = await chrome.storage.local.get([SERVER_URL_KEY]);
+  const result = await chrome.storage.local.get([SERVER_URL_KEY, LANGUAGE_KEY]);
   serverInput.value = result[SERVER_URL_KEY] || 'http://localhost:8080';
+  languageSelect.value = result[LANGUAGE_KEY] || 'zh';
 
   saveBtn.addEventListener('click', async () => {
     await chrome.storage.local.set({
-      [SERVER_URL_KEY]: serverInput.value
+      [SERVER_URL_KEY]: serverInput.value,
+      [LANGUAGE_KEY]: languageSelect.value
     });
     status.textContent = 'Saved!';
     setTimeout(() => status.textContent = '', 2000);

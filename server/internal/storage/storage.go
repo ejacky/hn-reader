@@ -20,6 +20,7 @@ type Article struct {
 	FetchedContent string    `json:"fetched_content"`
 	Summary        string    `json:"summary"`
 	KeyPoints      string    `json:"key_points"`
+	Lang           string    `json:"lang"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -31,6 +32,7 @@ type Comment struct {
 	Author    string    `json:"author"`
 	RawText   string    `json:"raw_text"`
 	Summary   string    `json:"summary"`
+	Lang      string    `json:"lang"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -63,14 +65,16 @@ func (s *Storage) migrate() error {
 	schema := `
 CREATE TABLE IF NOT EXISTS articles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hn_id INTEGER UNIQUE NOT NULL,
+    hn_id INTEGER NOT NULL,
     url TEXT,
     title TEXT,
     fetched_content TEXT,
     summary TEXT,
     key_points TEXT,
+    lang TEXT DEFAULT 'zh',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(hn_id, lang)
 );
 
 CREATE TABLE IF NOT EXISTS comments (
@@ -80,7 +84,9 @@ CREATE TABLE IF NOT EXISTS comments (
     author TEXT,
     raw_text TEXT,
     summary TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    lang TEXT DEFAULT 'zh',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(hn_id, lang)
 );
 
 CREATE TABLE IF NOT EXISTS user_signals (
@@ -97,17 +103,77 @@ CREATE INDEX IF NOT EXISTS idx_signals_target ON user_signals(target_type, targe
 CREATE INDEX IF NOT EXISTS idx_signals_type ON user_signals(signal_type);
 `
 	_, err := s.db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+
+	s.migrateArticlesLang()
+	s.migrateCommentsLang()
+	return nil
+}
+
+func (s *Storage) migrateArticlesLang() {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('articles') WHERE name = 'lang'`).Scan(&count)
+	if err != nil || count > 0 {
+		return
+	}
+
+	s.db.Exec(`
+		CREATE TABLE articles_new (
+		    id INTEGER PRIMARY KEY AUTOINCREMENT,
+		    hn_id INTEGER NOT NULL,
+		    url TEXT,
+		    title TEXT,
+		    fetched_content TEXT,
+		    summary TEXT,
+		    key_points TEXT,
+		    lang TEXT DEFAULT 'zh',
+		    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		    UNIQUE(hn_id, lang)
+		)
+	`)
+	s.db.Exec(`INSERT INTO articles_new (id, hn_id, url, title, fetched_content, summary, key_points, lang, created_at, updated_at)
+		SELECT id, hn_id, url, title, fetched_content, summary, key_points, 'zh', created_at, updated_at FROM articles`)
+	s.db.Exec(`DROP TABLE articles`)
+	s.db.Exec(`ALTER TABLE articles_new RENAME TO articles`)
+}
+
+func (s *Storage) migrateCommentsLang() {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('comments') WHERE name = 'lang'`).Scan(&count)
+	if err != nil || count > 0 {
+		return
+	}
+
+	s.db.Exec(`
+		CREATE TABLE comments_new (
+		    id INTEGER PRIMARY KEY AUTOINCREMENT,
+		    hn_id INTEGER NOT NULL,
+		    article_id INTEGER,
+		    author TEXT,
+		    raw_text TEXT,
+		    summary TEXT,
+		    lang TEXT DEFAULT 'zh',
+		    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		    UNIQUE(hn_id, lang)
+		)
+	`)
+	s.db.Exec(`INSERT INTO comments_new (id, hn_id, article_id, author, raw_text, summary, lang, created_at)
+		SELECT id, hn_id, article_id, author, raw_text, summary, 'zh', created_at FROM comments`)
+	s.db.Exec(`DROP TABLE comments`)
+	s.db.Exec(`ALTER TABLE comments_new RENAME TO comments`)
 }
 
 func (s *Storage) Close() error {
 	return s.db.Close()
 }
 
-func (s *Storage) GetArticleByHNID(hnID int64) (*Article, error) {
-	row := s.db.QueryRow(`SELECT id, hn_id, url, title, fetched_content, summary, key_points, created_at, updated_at FROM articles WHERE hn_id = ?`, hnID)
+func (s *Storage) GetArticleByHNID(hnID int64, lang string) (*Article, error) {
+	row := s.db.QueryRow(`SELECT id, hn_id, url, title, fetched_content, summary, key_points, lang, created_at, updated_at FROM articles WHERE hn_id = ? AND lang = ?`, hnID, lang)
 	var a Article
-	err := row.Scan(&a.ID, &a.HNID, &a.URL, &a.Title, &a.FetchedContent, &a.Summary, &a.KeyPoints, &a.CreatedAt, &a.UpdatedAt)
+	err := row.Scan(&a.ID, &a.HNID, &a.URL, &a.Title, &a.FetchedContent, &a.Summary, &a.KeyPoints, &a.Lang, &a.CreatedAt, &a.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -119,12 +185,12 @@ func (s *Storage) GetArticleByHNID(hnID int64) (*Article, error) {
 
 func (s *Storage) SaveArticle(a *Article) error {
 	_, err := s.db.Exec(
-		`INSERT INTO articles (hn_id, url, title, fetched_content, summary, key_points, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(hn_id) DO UPDATE SET
+		`INSERT INTO articles (hn_id, url, title, fetched_content, summary, key_points, lang, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(hn_id, lang) DO UPDATE SET
 			url=excluded.url, title=excluded.title, fetched_content=excluded.fetched_content,
 			summary=excluded.summary, key_points=excluded.key_points, updated_at=excluded.updated_at`,
-		a.HNID, a.URL, a.Title, a.FetchedContent, a.Summary, a.KeyPoints, time.Now(),
+		a.HNID, a.URL, a.Title, a.FetchedContent, a.Summary, a.KeyPoints, a.Lang, time.Now(),
 	)
 	return err
 }
@@ -162,7 +228,7 @@ func (s *Storage) GetSignalsByTarget(targetType string, targetID int64) ([]UserS
 }
 
 func (s *Storage) GetAllArticles() ([]Article, error) {
-	rows, err := s.db.Query(`SELECT id, hn_id, url, title, fetched_content, summary, key_points, created_at, updated_at FROM articles`)
+	rows, err := s.db.Query(`SELECT id, hn_id, url, title, fetched_content, summary, key_points, lang, created_at, updated_at FROM articles`)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +237,7 @@ func (s *Storage) GetAllArticles() ([]Article, error) {
 	var articles []Article
 	for rows.Next() {
 		var a Article
-		if err := rows.Scan(&a.ID, &a.HNID, &a.URL, &a.Title, &a.FetchedContent, &a.Summary, &a.KeyPoints, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.HNID, &a.URL, &a.Title, &a.FetchedContent, &a.Summary, &a.KeyPoints, &a.Lang, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, err
 		}
 		articles = append(articles, a)
@@ -208,10 +274,10 @@ func (s *Storage) GetSignalStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-func (s *Storage) GetCommentByHNID(hnID int64) (*Comment, error) {
-	row := s.db.QueryRow(`SELECT id, hn_id, article_id, author, raw_text, summary, created_at FROM comments WHERE hn_id = ?`, hnID)
+func (s *Storage) GetCommentByHNID(hnID int64, lang string) (*Comment, error) {
+	row := s.db.QueryRow(`SELECT id, hn_id, article_id, author, raw_text, summary, lang, created_at FROM comments WHERE hn_id = ? AND lang = ?`, hnID, lang)
 	var c Comment
-	err := row.Scan(&c.ID, &c.HNID, &c.ArticleID, &c.Author, &c.RawText, &c.Summary, &c.CreatedAt)
+	err := row.Scan(&c.ID, &c.HNID, &c.ArticleID, &c.Author, &c.RawText, &c.Summary, &c.Lang, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -223,12 +289,12 @@ func (s *Storage) GetCommentByHNID(hnID int64) (*Comment, error) {
 
 func (s *Storage) SaveComment(c *Comment) error {
 	_, err := s.db.Exec(
-		`INSERT INTO comments (hn_id, article_id, author, raw_text, summary)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(hn_id) DO UPDATE SET
+		`INSERT INTO comments (hn_id, article_id, author, raw_text, summary, lang)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(hn_id, lang) DO UPDATE SET
 			article_id=excluded.article_id, author=excluded.author,
 			raw_text=excluded.raw_text, summary=excluded.summary`,
-		c.HNID, c.ArticleID, c.Author, c.RawText, c.Summary,
+		c.HNID, c.ArticleID, c.Author, c.RawText, c.Summary, c.Lang,
 	)
 	return err
 }
@@ -237,7 +303,7 @@ func (s *Storage) GetArticlesByIDs(hnIDs []int64) ([]Article, error) {
 	if len(hnIDs) == 0 {
 		return nil, nil
 	}
-	query := `SELECT id, hn_id, url, title, fetched_content, summary, key_points, created_at, updated_at FROM articles WHERE hn_id IN (`
+	query := `SELECT id, hn_id, url, title, fetched_content, summary, key_points, lang, created_at, updated_at FROM articles WHERE hn_id IN (`
 	args := make([]interface{}, len(hnIDs))
 	for i, id := range hnIDs {
 		if i > 0 {
@@ -257,7 +323,7 @@ func (s *Storage) GetArticlesByIDs(hnIDs []int64) ([]Article, error) {
 	var articles []Article
 	for rows.Next() {
 		var a Article
-		if err := rows.Scan(&a.ID, &a.HNID, &a.URL, &a.Title, &a.FetchedContent, &a.Summary, &a.KeyPoints, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.HNID, &a.URL, &a.Title, &a.FetchedContent, &a.Summary, &a.KeyPoints, &a.Lang, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, err
 		}
 		articles = append(articles, a)

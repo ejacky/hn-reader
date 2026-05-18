@@ -47,6 +47,7 @@ type SummarizeArticleReq struct {
 	HNID  int64  `json:"hn_id"`
 	URL   string `json:"url"`
 	Title string `json:"title"`
+	Lang  string `json:"lang"`
 }
 
 type SummarizeArticleResp struct {
@@ -62,7 +63,11 @@ func (s *Server) handleSummarizeArticle(c *gin.Context) {
 		return
 	}
 
-	existing, err := s.storage.GetArticleByHNID(req.HNID)
+	if req.Lang == "" {
+		req.Lang = "zh"
+	}
+
+	existing, err := s.storage.GetArticleByHNID(req.HNID, req.Lang)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -86,7 +91,7 @@ func (s *Server) handleSummarizeArticle(c *gin.Context) {
 		content = ""
 	}
 
-	summary, keyPoints, err := s.summarizer.SummarizeArticle(req.Title, content)
+	summary, keyPoints, err := s.summarizer.SummarizeArticle(req.Title, content, req.Lang)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -100,6 +105,7 @@ func (s *Server) handleSummarizeArticle(c *gin.Context) {
 		FetchedContent: content,
 		Summary:        summary,
 		KeyPoints:      string(kpJSON),
+		Lang:           req.Lang,
 	}
 	if err := s.storage.SaveArticle(article); err != nil {
 		log.Printf("save article failed: %v", err)
@@ -117,6 +123,7 @@ type SummarizeCommentReq struct {
 	ArticleID int64  `json:"article_id"`
 	Author    string `json:"author"`
 	Text      string `json:"text"`
+	Lang      string `json:"lang"`
 }
 
 type SummarizeCommentResp struct {
@@ -131,7 +138,11 @@ func (s *Server) handleSummarizeComment(c *gin.Context) {
 		return
 	}
 
-	existing, err := s.storage.GetCommentByHNID(req.HNID)
+	if req.Lang == "" {
+		req.Lang = "zh"
+	}
+
+	existing, err := s.storage.GetCommentByHNID(req.HNID, req.Lang)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -141,7 +152,7 @@ func (s *Server) handleSummarizeComment(c *gin.Context) {
 		return
 	}
 
-	summary, err := s.summarizer.SummarizeComment(req.Text)
+	summary, err := s.summarizer.SummarizeComment(req.Text, req.Lang)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -153,6 +164,7 @@ func (s *Server) handleSummarizeComment(c *gin.Context) {
 		Author:    req.Author,
 		RawText:   req.Text,
 		Summary:   summary,
+		Lang:      req.Lang,
 	}
 	if err := s.storage.SaveComment(comment); err != nil {
 		log.Printf("save comment failed: %v", err)

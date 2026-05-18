@@ -24,12 +24,17 @@ func New(cfg *config.Config) *Summarizer {
 	}
 }
 
-func (s *Summarizer) SummarizeArticle(title, content string) (string, []string, error) {
+func (s *Summarizer) SummarizeArticle(title, content, lang string) (string, []string, error) {
 	if content == "" {
 		content = title
 	}
 	if len(content) > 10000 {
 		content = content[:10000]
+	}
+
+	langInstruction := "请用中文回答。"
+	if lang == "en" {
+		langInstruction = "Please respond in English."
 	}
 
 	prompt := fmt.Sprintf(`You are a reading assistant. Summarize the following article in a concise and informative way.
@@ -48,7 +53,9 @@ Summary: <summary text>
 Key Points:
 - <point 1>
 - <point 2>
-- <point 3>`, title, content)
+- <point 3>
+
+%s`, title, content, langInstruction)
 
 	respText, err := s.callLLM(prompt)
 	if err != nil {
@@ -59,9 +66,14 @@ Key Points:
 	return summary, keyPoints, nil
 }
 
-func (s *Summarizer) SummarizeComment(text string) (string, error) {
+func (s *Summarizer) SummarizeComment(text, lang string) (string, error) {
 	if len(text) > 3000 {
 		text = text[:3000]
+	}
+
+	langInstruction := "请用中文回答。"
+	if lang == "en" {
+		langInstruction = "Please respond in English."
 	}
 
 	prompt := fmt.Sprintf(`You are a reading assistant. Summarize the following Hacker News comment into 1-2 sentences capturing the core point or insight.
@@ -69,7 +81,8 @@ func (s *Summarizer) SummarizeComment(text string) (string, error) {
 Comment:
 %s
 
-Summary:`, text)
+Summary:
+%s`, text, langInstruction)
 
 	respText, err := s.callLLM(prompt)
 	if err != nil {

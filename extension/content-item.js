@@ -32,7 +32,9 @@
   }
 
   async function fetchCommentSummary(hnId, articleId, author, text) {
-    return await sendToBg('summarizeComment', { hn_id: hnId, article_id: articleId, author, text });
+    const result = await chrome.storage.local.get(['hn_reader_language']);
+    const lang = result['hn_reader_language'] || 'zh';
+    return await sendToBg('summarizeComment', { hn_id: hnId, article_id: articleId, author, text, lang: lang });
   }
 
   function getArticleIdFromUrl() {
