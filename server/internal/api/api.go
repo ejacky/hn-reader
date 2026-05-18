@@ -22,18 +22,21 @@ type Server struct {
 	storage    *storage.Storage
 	summarizer *summarizer.Summarizer
 	fetcher    *fetcher.Fetcher
+	version    string
 }
 
-func New(cfg *config.Config, st *storage.Storage) *Server {
+func New(cfg *config.Config, st *storage.Storage, version string) *Server {
 	return &Server{
 		config:     cfg,
 		storage:    st,
 		summarizer: summarizer.New(cfg),
 		fetcher:    fetcher.New(),
+		version:    version,
 	}
 }
 
 func (s *Server) RegisterRoutes(r *gin.Engine) {
+	r.GET("/health", s.handleHealth)
 	r.POST("/api/summarize/article", s.handleSummarizeArticle)
 	r.POST("/api/summarize/comment", s.handleSummarizeComment)
 	r.POST("/api/signal", s.handleSignal)
@@ -41,6 +44,14 @@ func (s *Server) RegisterRoutes(r *gin.Engine) {
 	r.GET("/api/preference/profile", s.handlePreferenceProfile)
 	r.POST("/api/match/batch", s.handleBatchMatch)
 	r.GET("/api/recommendations", s.handleRecommendations)
+}
+
+func (s *Server) handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"version": s.version,
+		"port":    s.config.Port,
+	})
 }
 
 type SummarizeArticleReq struct {

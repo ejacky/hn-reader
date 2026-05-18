@@ -1,5 +1,5 @@
 body {
-  width: 320px;
+  width: 340px;
   padding: 12px;
   font-family: Verdana, Geneva, sans-serif;
   font-size: 12px;
@@ -9,9 +9,27 @@ body {
 }
 
 .header h1 {
-  margin: 0 0 12px 0;
+  margin: 0 0 8px 0;
   font-size: 14px;
   color: #ff6600;
+}
+
+/* Connection status bar */
+.connection-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+#connIndicator {
+  font-size: 10px;
+  color: #999;
 }
 
 .section {
@@ -33,6 +51,15 @@ body {
   border-radius: 2px;
   font-size: 11px;
   font-family: monospace;
+}
+
+.section select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  font-size: 11px;
 }
 
 .actions {
@@ -86,4 +113,85 @@ h2 {
 
 #recContent small {
   color: #666;
+}
+
+/* Guide card for disconnected state */
+.guide-card {
+  background: #fff;
+  border: 1px solid #ff6600;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.guide-card p {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.guide-note {
+  color: #666;
+  font-size: 10px !important;
+  margin: 8px 0 0 0 !important;
+}
+
+.download-btn {
+  background: #ff6600;
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.download-btn:hover {
+  background: #e65c00;
+}
+
+/* Manual connection section */
+.manual-section {
+  font-size: 11px;
+}
+
+.manual-section p {
+  margin: 0 0 6px 0;
+  color: #666;
+}
+
+.manual-row {
+  display: flex;
+  gap: 6px;
+}
+
+.manual-row input {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.manual-row button {
+  background: #666;
+  color: #fff;
+  border: none;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.manual-row button:hover {
+  background: #555;
+}
+
+#connText a {
+  color: #e65c00;
 }

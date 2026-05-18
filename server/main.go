@@ -12,6 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=1.2.0".
+var Version = "1.0.0"
+
 func main() {
 	installFlag := flag.Bool("install", false, "Install as Windows service")
 	uninstallFlag := flag.Bool("uninstall", false, "Uninstall Windows service")
@@ -44,7 +47,7 @@ func main() {
 	r := gin.Default()
 	r.Use(corsMiddleware())
 
-	server := api.New(cfg, st)
+	server := api.New(cfg, st, Version)
 	server.RegisterRoutes(r)
 
 	addr := ":" + cfg.Port

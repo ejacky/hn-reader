@@ -9,31 +9,56 @@
     <h1>HN Reader</h1>
   </div>
 
-  <div class="section">
-    <label>Server URL</label>
-    <input type="text" id="serverUrl" placeholder="http://localhost:8080" />
+  <div class="connection-bar">
+    <span id="connIndicator">●</span>
+    <span id="connText">检测中...</span>
   </div>
 
-  <div class="section">
-    <label>Summary Language</label>
-    <select id="language">
-      <option value="zh">中文</option>
-      <option value="en">English</option>
-    </select>
+  <div id="normalSection">
+    <div class="section">
+      <label>Server URL</label>
+      <input type="text" id="serverUrl" placeholder="http://localhost:8080" />
+    </div>
+
+    <div class="section">
+      <label>Summary Language</label>
+      <select id="language">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button id="saveBtn">Save Settings</button>
+    </div>
+
+    <div class="section" id="statsSection" style="display:none;">
+      <h2>Your Stats</h2>
+      <div id="statsContent"></div>
+    </div>
+
+    <div class="section" id="recSection" style="display:none;">
+      <h2>Recommendations</h2>
+      <div id="recContent"></div>
+    </div>
   </div>
 
-  <div class="actions">
-    <button id="saveBtn">Save Settings</button>
-  </div>
+  <div id="guideSection" style="display:none;">
+    <div class="guide-card">
+      <p>HN Reader 需要一个本地服务来提供 AI 摘要功能。</p>
+      <a id="downloadLink" href="#" target="_blank">
+        <button class="download-btn">下载 HN Reader 服务端</button>
+      </a>
+      <p class="guide-note">下载后运行安装程序，一键完成配置即可使用。</p>
+    </div>
 
-  <div class="section" id="statsSection" style="display:none;">
-    <h2>Your Stats</h2>
-    <div id="statsContent"></div>
-  </div>
-
-  <div class="section" id="recSection" style="display:none;">
-    <h2>Recommendations</h2>
-    <div id="recContent"></div>
+    <div class="manual-section">
+      <p>或手动输入服务地址：</p>
+      <div class="manual-row">
+        <input type="text" id="manualServerUrl" placeholder="http://localhost:8080" />
+        <button id="reconnectBtn">连接</button>
+      </div>
+    </div>
   </div>
 
   <div id="status"></div>

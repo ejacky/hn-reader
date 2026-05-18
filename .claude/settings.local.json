@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(go build *)",
-      "Bash(go vet *)"
+      "Bash(go vet *)",
+      "Bash(timeout 3 ./hn-reader.exe)",
+      "Bash(curl -s http://localhost:8080/health)",
+      "Bash(kill %1)",
+      "Bash(printf '\\\\xEF\\\\xBB\\\\xBF')",
+      "Bash(cat \"E:/my/hn-reader/installer/setup.nsi\")",
+      "Bash(cp /tmp/setup_bom.nsi \"E:/my/hn-reader/installer/setup.nsi\")",
+      "Bash(xxd \"E:/my/hn-reader/installer/setup.nsi\")"
     ]
   }
 }
