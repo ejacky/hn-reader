@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -80,30 +79,6 @@ func Uninstall() error {
 }
 
 func Run(handler http.Handler, addr string) error {
-	execPath, err := os.Executable()
-	if err != nil {
-		return err
-	}
-
-	// Change working directory to the executable directory so relative
-	// paths (like ./hn-reader.db) resolve correctly. The service default
-	// working directory is C:\Windows\System32.
-	execDir := filepath.Dir(execPath)
-	if err := os.Chdir(execDir); err != nil {
-		return fmt.Errorf("chdir to %s: %w", execDir, err)
-	}
-
-	// Redirect log output to a file since services have no console.
-	logFile, err := os.OpenFile(
-		filepath.Join(execDir, "hn-reader.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644,
-	)
-	if err != nil {
-		return fmt.Errorf("open log file: %w", err)
-	}
-	defer logFile.Close()
-	log.SetOutput(logFile)
-
 	return svc.Run(name, &hnReaderService{handler: handler, addr: addr})
 }
 

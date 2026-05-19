@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"path/filepath"
 
 	"hn-reader/internal/api"
 	"hn-reader/internal/config"
@@ -35,6 +37,12 @@ func main() {
 		return
 	}
 
+	// When running as a Windows service, redirect log output to a file
+	// early so we can capture log output from config loading.
+	if *runServiceFlag {
+		setupLogging()
+	}
+
 	cfg := config.Load()
 
 	st, err := storage.New(cfg.DatabasePath)
@@ -64,6 +72,26 @@ func main() {
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
+}
+
+func setupLogging() {
+	execPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	execDir := filepath.Dir(execPath)
+	if err := os.Chdir(execDir); err != nil {
+		log.Printf("chdir to %s: %v", execDir, err)
+		return
+	}
+	logFile, err := os.OpenFile(
+		filepath.Join(execDir, "hn-reader.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644,
+	)
+	if err != nil {
+		return
+	}
+	log.SetOutput(logFile)
 }
 
 func corsMiddleware() gin.HandlerFunc {
