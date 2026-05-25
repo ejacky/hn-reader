@@ -299,11 +299,11 @@
     // 提交预加载（不等待）
     preloadArticles(batch);
 
-    // 开始轮询状态
-    const ids = batch.map(a => a.hn_id);
-    pollPreloadStatus(ids, lang);
+    // 开始轮询状态（轮询当前页全部文章，而不仅是预加载 batch）
+    const allIds = articles.map(a => a.hn_id);
+    pollPreloadStatus(allIds, lang);
     const intervalId = setInterval(() => {
-      pollPreloadStatus(ids, lang);
+      pollPreloadStatus(allIds, lang);
     }, 3000);
 
     // 页面卸载时停止轮询
