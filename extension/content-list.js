@@ -132,9 +132,48 @@
       border-radius: 2px;
     `;
     closeBtn.onclick = () => card.remove();
+    closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     card.appendChild(closeBtn);
 
+    makeDraggable(card);
     return card;
+  }
+
+  function makeDraggable(el) {
+    let isDragging = false;
+    let startX, startY, initLeft, initTop;
+
+    el.addEventListener('mousedown', (e) => {
+      isDragging = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      initLeft = parseFloat(el.style.left) || 0;
+      initTop = parseFloat(el.style.top) || 0;
+
+      const onMove = (ev) => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+          isDragging = true;
+          el.style.cursor = 'grabbing';
+          el.style.userSelect = 'none';
+        }
+        if (isDragging) {
+          el.style.left = (initLeft + dx) + 'px';
+          el.style.top = (initTop + dy) + 'px';
+        }
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        el.style.cursor = '';
+        el.style.userSelect = '';
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 
   function injectSummaryButtons() {

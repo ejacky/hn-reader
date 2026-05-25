@@ -107,8 +107,10 @@
           closeBtn.style.marginLeft = '8px';
           closeBtn.style.cursor = 'pointer';
           closeBtn.onclick = (ev) => { ev.preventDefault(); summaryDiv.remove(); summaryDiv = null; btn.textContent = ' [summarize]'; };
+          closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
           summaryDiv.appendChild(closeBtn);
 
+          makeDraggable(summaryDiv);
           commentCell.appendChild(summaryDiv);
           await sendSignal('comment', hnId, 'comment_summary_viewed', 2, { author });
         } catch (err) {
@@ -149,6 +151,44 @@
           sendSignal('article', itemId, 'favorited', 5, {});
         }
       });
+    });
+  }
+
+  function makeDraggable(el) {
+    let isDragging = false;
+    let startX, startY, currentX = 0, currentY = 0;
+
+    el.addEventListener('mousedown', (e) => {
+      isDragging = false;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const onMove = (ev) => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+          isDragging = true;
+          el.style.cursor = 'grabbing';
+          el.style.userSelect = 'none';
+        }
+        if (isDragging) {
+          el.style.transform = `translate(${currentX + dx}px, ${currentY + dy}px)`;
+        }
+      };
+
+      const onUp = (ev) => {
+        if (isDragging) {
+          currentX += ev.clientX - startX;
+          currentY += ev.clientY - startY;
+        }
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        el.style.cursor = '';
+        el.style.userSelect = '';
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
   }
 
