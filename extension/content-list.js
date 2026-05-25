@@ -33,10 +33,50 @@
     }
   }
 
+  async function getServerUrl() {
+    const result = await chrome.storage.local.get(['hn_reader_server_url']);
+    return result['hn_reader_server_url'] || 'http://localhost:8080';
+  }
+
   async function fetchSummary(hnId, url, title) {
     const result = await chrome.storage.local.get(['hn_reader_language']);
     const lang = result['hn_reader_language'] || 'zh';
     return await sendToBg('summarizeArticle', { hn_id: hnId, url: url, title: title, lang: lang });
+  }
+
+  async function preloadArticles(articles) {
+    if (articles.length === 0) return;
+    const serverUrl = await getServerUrl();
+    try {
+      fetch(`${serverUrl}/api/summarize/article/preload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articles })
+      }).catch(() => {});
+    } catch (e) {
+      console.error('[HN Reader] preload request failed:', e);
+    }
+  }
+
+  async function pollPreloadStatus(articleIds, lang) {
+    if (articleIds.length === 0) return;
+    const serverUrl = await getServerUrl();
+    try {
+      const resp = await fetch(`${serverUrl}/api/summarize/article/preload-status?ids=${articleIds.join(',')}&lang=${lang}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.ready_ids) {
+        data.ready_ids.forEach(id => {
+          const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${id}"]`);
+          if (btn) {
+            btn.style.color = '#228b22';
+            btn.title = '已预加载';
+          }
+        });
+      }
+    } catch (e) {
+      console.error('[HN Reader] preload status poll failed:', e);
+    }
   }
 
   function createSummaryCard(data, hnId) {
@@ -134,6 +174,8 @@
       btn.style.textDecoration = 'none';
       btn.style.cursor = 'pointer';
       btn.style.marginLeft = '4px';
+      btn.setAttribute('data-hn-reader-summary', 'true');
+      btn.setAttribute('data-hn-id', hnId);
 
       const titleCell = titleline.closest('td.title');
 
@@ -228,10 +270,54 @@
     }
   }
 
+  async function startPreload() {
+    const rows = document.querySelectorAll('.athing');
+    const articles = [];
+    rows.forEach(row => {
+      const titleline = row.querySelector('span.titleline');
+      if (!titleline) return;
+      const titleLink = titleline.querySelector('a');
+      if (!titleLink) return;
+      const hnId = parseInt(row.id, 10);
+      if (!hnId) return;
+      articles.push({
+        hn_id: hnId,
+        url: titleLink.href,
+        title: titleLink.textContent,
+        lang: 'zh'
+      });
+    });
+
+    // 只预加载前 15 篇
+    const batch = articles.slice(0, 15);
+    if (batch.length === 0) return;
+
+    const result = await chrome.storage.local.get(['hn_reader_language']);
+    const lang = result['hn_reader_language'] || 'zh';
+    batch.forEach(a => a.lang = lang);
+
+    // 提交预加载（不等待）
+    preloadArticles(batch);
+
+    // 开始轮询状态
+    const ids = batch.map(a => a.hn_id);
+    pollPreloadStatus(ids, lang);
+    const intervalId = setInterval(() => {
+      pollPreloadStatus(ids, lang);
+    }, 3000);
+
+    // 页面卸载时停止轮询
+    window.addEventListener('beforeunload', () => {
+      clearInterval(intervalId);
+    });
+  }
+
   function init() {
     console.log('[HN Reader] init() called, readyState:', document.readyState);
     injectSummaryButtons();
     applyInterestMatches();
+    // 延迟 2 秒后触发预加载，等页面稳定
+    setTimeout(startPreload, 2000);
   }
 
   if (document.readyState === 'loading') {

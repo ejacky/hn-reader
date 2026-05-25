@@ -11,6 +11,7 @@ import (
 
 	"hn-reader/internal/config"
 	"hn-reader/internal/fetcher"
+	"hn-reader/internal/preloader"
 	"hn-reader/internal/storage"
 	"hn-reader/internal/summarizer"
 
@@ -22,23 +23,28 @@ type Server struct {
 	storage    *storage.Storage
 	summarizer *summarizer.Summarizer
 	fetcher    *fetcher.Fetcher
+	preloader  *preloader.Preloader
 	version    string
 }
 
 func New(cfg *config.Config, st *storage.Storage, version string) *Server {
-	return &Server{
+	s := &Server{
 		config:     cfg,
 		storage:    st,
 		summarizer: summarizer.New(cfg),
 		fetcher:    fetcher.New(),
 		version:    version,
 	}
+	s.preloader = preloader.New(st, s.fetcher, s.summarizer, 3)
+	return s
 }
 
 func (s *Server) RegisterRoutes(r *gin.Engine) {
 	r.GET("/health", s.handleHealth)
 	r.POST("/api/summarize/article", s.handleSummarizeArticle)
 	r.POST("/api/summarize/comment", s.handleSummarizeComment)
+	r.POST("/api/summarize/article/preload", s.handlePreloadArticles)
+	r.GET("/api/summarize/article/preload-status", s.handlePreloadStatus)
 	r.POST("/api/signal", s.handleSignal)
 	r.GET("/api/signal/stats", s.handleSignalStats)
 	r.GET("/api/preference/profile", s.handlePreferenceProfile)
@@ -455,4 +461,51 @@ func (s *Server) fetchContent(url string) (string, error) {
 		text = text[:10000]
 	}
 	return text, nil
+}
+
+func (s *Server) handlePreloadArticles(c *gin.Context) {
+	type preloadReq struct {
+		Articles []preloader.ArticleRequest `json:"articles"`
+	}
+	var req preloadReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, article := range req.Articles {
+		s.preloader.Submit(article)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"queued": len(req.Articles)})
+}
+
+func (s *Server) handlePreloadStatus(c *gin.Context) {
+	idsParam := c.Query("ids")
+	if idsParam == "" {
+		c.JSON(http.StatusOK, gin.H{"ready_ids": []int64{}})
+		return
+	}
+
+	var hnIDs []int64
+	for _, part := range strings.Split(idsParam, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			continue
+		}
+		hnIDs = append(hnIDs, id)
+	}
+
+	lang := c.DefaultQuery("lang", "zh")
+	readyIDs, err := s.preloader.IsCached(hnIDs, lang)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ready_ids": readyIDs})
 }
