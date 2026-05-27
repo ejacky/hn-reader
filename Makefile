@@ -1,4 +1,4 @@
-VERSION = 1.0.0
+VERSION = 1.0.1
 
 .PHONY: build run dev extension clean install-service uninstall-service start-service release
 
@@ -30,5 +30,5 @@ start-service: build
 	cd server && .\hn-reader.exe -run-service
 
 release: build
-	cd installer && makensis /DPRODUCT_VERSION=$(VERSION) setup.nsi
+	cd installer && makensis -INPUTCHARSET UTF8 -DPRODUCT_VERSION=$(VERSION) setup.nsi
 	@echo "Installer: installer/HNReader-Setup-$(VERSION).exe"

@@ -1,10 +1,11 @@
-﻿; HN Reader Server - Windows Installer
+; HN Reader Server - Windows Installer
 ; Build: makensis setup.nsi (or use Makefile release target)
 
 Unicode true
 
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
 !ifndef PRODUCT_VERSION
   !define PRODUCT_VERSION "1.0.0"
@@ -48,7 +49,86 @@ Var BaseUrlCtrl
 Var ModelCtrl
 Var PortCtrl
 
+; --- Variables for upgrade/reinstall detection ---
+Var HasOldInstall
+Var HasExistingConfig
+
+; ============================================
+; .onInit: Detect existing installation
+; ============================================
+Function .onInit
+  StrCpy $HasOldInstall 0
+  StrCpy $HasExistingConfig 0
+
+  ; Try to read existing install info from registry
+  ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "InstallLocation"
+
+  ${If} $R0 != ""
+    ; Found old installation
+    StrCpy $HasOldInstall 1
+    ; Use old install directory so we upgrade in-place
+    StrCpy $INSTDIR $R0
+
+    ; Check if there's an existing .env config
+    IfFileExists "$R0\.env" has_config no_config
+    has_config:
+      StrCpy $HasExistingConfig 1
+      Goto config_check_done
+    no_config:
+      StrCpy $HasExistingConfig 0
+    config_check_done:
+  ${EndIf}
+FunctionEnd
+
+; ============================================
+; Stop and remove existing Windows service
+; ============================================
+Function StopAndRemoveService
+  DetailPrint "Stopping existing service..."
+  nsExec::ExecToLog 'sc stop ${SERVICE_NAME}'
+  Pop $R0
+
+  ; Wait up to 5 seconds for service to fully stop
+  StrCpy $R1 0
+  wait_loop:
+    Sleep 1000
+    IntOp $R1 $R1 + 1
+    ${If} $R1 >= 5
+      Goto wait_done
+    ${EndIf}
+    ; Check if service still exists; sc query returns 0 if service exists
+    nsExec::ExecToLog 'sc query ${SERVICE_NAME}'
+    Pop $R0
+    ${If} $R0 != 0
+      Goto wait_done
+    ${EndIf}
+    Goto wait_loop
+  wait_done:
+
+  DetailPrint "Removing existing service..."
+  ; Try to uninstall via the binary first (custom cleanup)
+  ${If} ${FileExists} "$INSTDIR\hn-reader.exe"
+    nsExec::ExecToLog '"$INSTDIR\hn-reader.exe" -uninstall'
+    Pop $R0
+  ${EndIf}
+
+  ; Fallback: use sc delete to force remove service entry
+  nsExec::ExecToLog 'sc delete ${SERVICE_NAME}'
+  Pop $R0
+
+  ; Give SCM a moment to settle
+  Sleep 1000
+FunctionEnd
+
+; ============================================
+; Custom config page
+; ============================================
 Function ConfigPage
+  ; Skip config page if we already have an existing .env
+  ${If} $HasExistingConfig == 1
+    Abort
+  ${EndIf}
+
   !insertmacro MUI_HEADER_TEXT "LLM 配置" "配置 AI 摘要服务所需的 API 信息"
 
   nsDialogs::Create 1018
@@ -100,20 +180,30 @@ Function ConfigPageLeave
   ${EndIf}
 FunctionEnd
 
-; --- Install Section ---
+; ============================================
+; Install Section
+; ============================================
 Section "Install"
+  ; --- Handle existing installation (upgrade or reinstall) ---
+  ${If} $HasOldInstall == 1
+    Call StopAndRemoveService
+  ${EndIf}
+
   SetOutPath "$INSTDIR"
 
   ; Copy server binary
   File "..\server\hn-reader.exe"
 
-  ; Write .env file
-  FileOpen $0 "$INSTDIR\.env" w
-  FileWrite $0 "LLM_API_KEY=$ApiKey$\r$\n"
-  FileWrite $0 "LLM_BASE_URL=$BaseUrl$\r$\n"
-  FileWrite $0 "LLM_MODEL=$Model$\r$\n"
-  FileWrite $0 "PORT=$Port$\r$\n"
-  FileClose $0
+  ; Write .env: preserve old config, or create new one for fresh install
+  ${If} $HasExistingConfig == 0
+    ; Fresh install: create .env from user input
+    FileOpen $0 "$INSTDIR\.env" w
+    FileWrite $0 "LLM_API_KEY=$ApiKey$\r$\n"
+    FileWrite $0 "LLM_BASE_URL=$BaseUrl$\r$\n"
+    FileWrite $0 "LLM_MODEL=$Model$\r$\n"
+    FileWrite $0 "PORT=$Port$\r$\n"
+    FileClose $0
+  ${EndIf}
 
   ; Install Windows service (auto-start)
   DetailPrint "Registering Windows service..."
@@ -137,17 +227,29 @@ Section "Install"
     "DisplayVersion" "${PRODUCT_VERSION}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
     "Publisher" "${PRODUCT_PUBLISHER}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
+    "InstallLocation" "$INSTDIR"
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" \
     "EstimatedSize" "$0"
 SectionEnd
 
-; --- Uninstall Section ---
+; ============================================
+; Uninstall Section
+; ============================================
 Section "Uninstall"
-  ; Stop and remove service
+  ; Stop service
+  nsExec::ExecToLog 'sc stop ${SERVICE_NAME}'
+  Sleep 2000
+
+  ; Remove service via binary uninstall
   nsExec::ExecToLog '"$INSTDIR\hn-reader.exe" -uninstall'
 
+  ; Fallback: force delete service entry from SCM
+  nsExec::ExecToLog 'sc delete ${SERVICE_NAME}'
+
+  ; Delete files
   Delete "$INSTDIR\hn-reader.exe"
   Delete "$INSTDIR\.env"
   Delete "$INSTDIR\hn-reader.log"
@@ -155,5 +257,6 @@ Section "Uninstall"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 
+  ; Remove registry entries
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 SectionEnd
