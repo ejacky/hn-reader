@@ -87,6 +87,9 @@
         try {
           const data = await fetchCommentSummary(hnId, articleId, author, text);
           summaryDiv = document.createElement('div');
+          summaryDiv.classList.add('hn-reader-popup');
+          if (!window.__hnReaderPopupCounter) window.__hnReaderPopupCounter = 0;
+          summaryDiv.dataset.hnReaderPopupId = ++window.__hnReaderPopupCounter;
           summaryDiv.style.cssText = `
             margin-top: 6px;
             padding: 8px;
@@ -201,6 +204,29 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+
+  if (!window.__hnReaderEscListenerAdded) {
+    window.__hnReaderEscListenerAdded = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const popups = document.querySelectorAll('.hn-reader-popup');
+        if (popups.length === 0) return;
+        let topMost = null;
+        let maxId = -1;
+        popups.forEach(p => {
+          const id = parseInt(p.dataset.hnReaderPopupId, 10);
+          if (id > maxId) {
+            maxId = id;
+            topMost = p;
+          }
+        });
+        if (topMost) {
+          topMost.remove();
+          e.stopPropagation();
+        }
+      }
+    });
   }
 
   const observer = new MutationObserver(() => {

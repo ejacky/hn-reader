@@ -81,7 +81,9 @@
 
   function createSummaryCard(data, hnId) {
     const card = document.createElement('div');
-    card.className = 'hn-reader-summary-card';
+    card.className = 'hn-reader-summary-card hn-reader-popup';
+    if (!window.__hnReaderPopupCounter) window.__hnReaderPopupCounter = 0;
+    card.dataset.hnReaderPopupId = ++window.__hnReaderPopupCounter;
     card.style.cssText = `
       position: fixed;
       z-index: 99999;
@@ -363,6 +365,29 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+
+  if (!window.__hnReaderEscListenerAdded) {
+    window.__hnReaderEscListenerAdded = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const popups = document.querySelectorAll('.hn-reader-popup');
+        if (popups.length === 0) return;
+        let topMost = null;
+        let maxId = -1;
+        popups.forEach(p => {
+          const id = parseInt(p.dataset.hnReaderPopupId, 10);
+          if (id > maxId) {
+            maxId = id;
+            topMost = p;
+          }
+        });
+        if (topMost) {
+          topMost.remove();
+          e.stopPropagation();
+        }
+      }
+    });
   }
 
   const observerTarget = document.body || document.documentElement;
