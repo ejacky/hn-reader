@@ -69,8 +69,13 @@
         data.ready_ids.forEach(id => {
           const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${id}"]`);
           if (btn) {
-            btn.style.color = '#228b22';
-            btn.title = '已预加载';
+            btn.dataset.hnReaderPreloaded = 'true';
+            // 如果当前摘要弹窗正打开，不要覆盖蓝色激活状态
+            const popupOpen = document.querySelector(`.hn-reader-popup[data-hn-reader-hn-id="${id}"]`);
+            if (!popupOpen) {
+              btn.style.color = '#228b22';
+              btn.title = '已预加载';
+            }
           }
         });
       }
@@ -79,11 +84,27 @@
     }
   }
 
-  function createSummaryCard(data, hnId) {
+  function setSummaryBtnState(hnId, active) {
+    const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${hnId}"]`);
+    if (!btn) return;
+    if (active) {
+      btn.style.color = '#0066cc';
+      btn.title = '摘要已打开';
+    } else if (btn.dataset.hnReaderPreloaded === 'true') {
+      btn.style.color = '#228b22';
+      btn.title = '已预加载';
+    } else {
+      btn.style.color = '#ff6600';
+      btn.title = '';
+    }
+  }
+
+  function createSummaryCard(data, hnId, title) {
     const card = document.createElement('div');
     card.className = 'hn-reader-summary-card hn-reader-popup';
     if (!window.__hnReaderPopupCounter) window.__hnReaderPopupCounter = 0;
     card.dataset.hnReaderPopupId = ++window.__hnReaderPopupCounter;
+    card.dataset.hnReaderHnId = hnId;
     card.style.cssText = `
       position: fixed;
       z-index: 99999;
@@ -101,6 +122,20 @@
       line-height: 1.5;
       color: #000;
     `;
+
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: none;
+      margin: -6px 0 4px 0;
+      padding-top: 2px;
+      font-size: 11px;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    `;
+    header.textContent = title || 'Untitled';
+    card.appendChild(header);
 
     const summaryP = document.createElement('p');
     summaryP.style.margin = '0 0 8px 0';
@@ -133,15 +168,20 @@
       font-size: 11px;
       border-radius: 2px;
     `;
-    closeBtn.onclick = () => card.remove();
+    closeBtn.onclick = () => {
+      setSummaryBtnState(hnId, false);
+      card.remove();
+    };
     closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     card.appendChild(closeBtn);
 
-    makeDraggable(card);
+    makeDraggable(card, () => {
+      header.style.display = 'block';
+    });
     return card;
   }
 
-  function makeDraggable(el) {
+  function makeDraggable(el, onDragStart) {
     let isDragging = false;
     let startX, startY, initLeft, initTop;
 
@@ -157,6 +197,7 @@
         const dy = ev.clientY - startY;
         if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
           isDragging = true;
+          if (onDragStart) onDragStart();
           el.style.cursor = 'grabbing';
           el.style.userSelect = 'none';
         }
@@ -226,6 +267,7 @@
         e.stopPropagation();
 
         if (card) {
+          setSummaryBtnState(hnId, false);
           card.remove();
           card = null;
           return;
@@ -234,11 +276,12 @@
         btn.textContent = ' [loading...]';
         try {
           const data = await fetchSummary(hnId, url, title);
-          card = createSummaryCard(data, hnId);
+          card = createSummaryCard(data, hnId, title);
           const rect = btn.getBoundingClientRect();
           card.style.top = (rect.bottom + 4) + 'px';
           card.style.left = rect.left + 'px';
           document.body.appendChild(card);
+          setSummaryBtnState(hnId, true);
           await sendSignal('article', hnId, 'summary_viewed', 1, { title });
         } catch (err) {
           console.error('[HN Reader] summarize error:', err);
@@ -383,6 +426,8 @@
           }
         });
         if (topMost) {
+          const popupHnId = parseInt(topMost.dataset.hnReaderHnId, 10);
+          if (popupHnId) setSummaryBtnState(popupHnId, false);
           topMost.remove();
           e.stopPropagation();
         }
