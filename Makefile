@@ -1,4 +1,4 @@
-VERSION = 1.0.1
+VERSION = 1.0.0
 
 .PHONY: build run dev extension clean install-service uninstall-service start-service release
 

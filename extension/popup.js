@@ -1,7 +1,7 @@
 const SERVER_URL_KEY = 'hn_reader_server_url';
 const LANGUAGE_KEY = 'hn_reader_language';
 const MIN_SERVER_VERSION = '1.0.0';
-const DOWNLOAD_URL = 'https://github.com/xxx/hn-reader/releases/latest';
+const DOWNLOAD_URL = 'https://github.com/ejacky/hn-reader/releases/latest';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const serverInput = document.getElementById('serverUrl');
