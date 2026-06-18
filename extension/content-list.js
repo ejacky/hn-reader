@@ -372,18 +372,19 @@
       });
     });
 
-    // 只预加载前 15 篇
-    const batch = articles.slice(0, 15);
-    if (batch.length === 0) return;
+    if (articles.length === 0) return;
 
     const result = await chrome.storage.local.get(['hn_reader_language']);
     const lang = result['hn_reader_language'] || 'zh';
-    batch.forEach(a => a.lang = lang);
 
-    // 提交预加载（不等待）
-    preloadArticles(batch);
+    // 只在非收藏页面提交新的预加载请求；收藏页文章可能已在内存或数据库中总结过
+    if (shouldPreloadNewArticles()) {
+      const batch = articles.slice(0, 15);
+      batch.forEach(a => a.lang = lang);
+      preloadArticles(batch);
+    }
 
-    // 开始轮询状态（轮询当前页全部文章，而不仅是预加载 batch）
+    // 轮询当前页全部文章的已总结状态（收藏页也查，以复用已有结果）
     const allIds = articles.map(a => a.hn_id);
     pollPreloadStatus(allIds, lang);
     const intervalId = setInterval(() => {
@@ -396,11 +397,18 @@
     });
   }
 
+  function shouldPreloadNewArticles() {
+    // 收藏页面是以前看过的文章，不要自动请求新的总结
+    const path = window.location.pathname;
+    return path !== '/fave' && path !== '/favorites';
+  }
+
   function init() {
     console.log('[HN Reader] init() called, readyState:', document.readyState);
     injectSummaryButtons();
     applyInterestMatches();
-    // 延迟 2 秒后触发预加载，等页面稳定
+    // 延迟 2 秒后触发预加载/状态查询，等页面稳定
+    // startPreload 内部会自己决定是否发送新的预加载请求；收藏页只查已有状态
     setTimeout(startPreload, 2000);
   }
 
