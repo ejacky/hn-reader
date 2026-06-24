@@ -1,7 +1,6 @@
 package preloader
 
 import (
-	"encoding/json"
 	"log"
 	"sync"
 
@@ -15,7 +14,7 @@ type Preloader struct {
 	sem        chan struct{}  // concurrency limiter
 	inflight   map[int64]bool // hn_ids currently being processed
 	inflightMu sync.RWMutex
-	st         *storage.Storage
+	st         storage.Repository
 	fetcher    *fetcher.Fetcher
 	summarizer *summarizer.Summarizer
 }
@@ -29,7 +28,8 @@ type ArticleRequest struct {
 }
 
 // New creates a Preloader with the given concurrency limit.
-func New(st *storage.Storage, f *fetcher.Fetcher, sm *summarizer.Summarizer, concurrency int) *Preloader {
+// userID is the owner for cloud mode; pass empty string for local mode.
+func New(st storage.Repository, f *fetcher.Fetcher, sm *summarizer.Summarizer, concurrency int) *Preloader {
 	if concurrency <= 0 {
 		concurrency = 3
 	}
@@ -42,9 +42,13 @@ func New(st *storage.Storage, f *fetcher.Fetcher, sm *summarizer.Summarizer, con
 	}
 }
 
-// Submit enqueues an article for background preloading.
-// It is non-blocking and deduplicates by hn_id.
+// Submit enqueues an article for background preloading (local/single-user mode).
 func (p *Preloader) Submit(req ArticleRequest) {
+	p.SubmitForUser("", req)
+}
+
+// SubmitForUser enqueues an article for a specific user (cloud mode).
+func (p *Preloader) SubmitForUser(userID string, req ArticleRequest) {
 	if req.Lang == "" {
 		req.Lang = "zh"
 	}
@@ -58,8 +62,8 @@ func (p *Preloader) Submit(req ArticleRequest) {
 	p.inflight[req.HNID] = true
 	p.inflightMu.Unlock()
 
-	// Check SQLite cache.
-	existing, err := p.st.GetArticleByHNID(req.HNID, req.Lang)
+	// Check cache.
+	existing, err := p.st.GetArticle(userID, req.HNID, req.Lang)
 	if err != nil {
 		log.Printf("preloader: cache check failed for %d: %v", req.HNID, err)
 		p.clearInflight(req.HNID)
@@ -71,10 +75,10 @@ func (p *Preloader) Submit(req ArticleRequest) {
 	}
 
 	// Process in background.
-	go p.process(req)
+	go p.process(userID, req)
 }
 
-func (p *Preloader) process(req ArticleRequest) {
+func (p *Preloader) process(userID string, req ArticleRequest) {
 	p.sem <- struct{}{}
 	defer func() { <-p.sem }()
 	defer p.clearInflight(req.HNID)
@@ -91,17 +95,16 @@ func (p *Preloader) process(req ArticleRequest) {
 		return
 	}
 
-	kpJSON, _ := json.Marshal(keyPoints)
 	article := &storage.Article{
 		HNID:           req.HNID,
 		URL:            req.URL,
 		Title:          req.Title,
 		FetchedContent: content,
 		Summary:        summary,
-		KeyPoints:      string(kpJSON),
+		KeyPoints:      keyPoints,
 		Lang:           req.Lang,
 	}
-	if err := p.st.SaveArticle(article); err != nil {
+	if err := p.st.SaveArticle(userID, article); err != nil {
 		log.Printf("preloader: save article %d failed: %v", req.HNID, err)
 	} else {
 		log.Printf("preloader: article %d preloaded successfully", req.HNID)
@@ -116,10 +119,15 @@ func (p *Preloader) clearInflight(hnID int64) {
 
 // IsCached returns the subset of hnIDs that already have a cached summary for the given language.
 func (p *Preloader) IsCached(hnIDs []int64, lang string) ([]int64, error) {
+	return p.IsCachedForUser("", hnIDs, lang)
+}
+
+// IsCachedForUser is the cloud-mode variant of IsCached.
+func (p *Preloader) IsCachedForUser(userID string, hnIDs []int64, lang string) ([]int64, error) {
 	if len(hnIDs) == 0 {
 		return []int64{}, nil
 	}
-	articles, err := p.st.GetArticlesByIDs(hnIDs)
+	articles, err := p.st.GetArticlesByIDs(userID, hnIDs)
 	if err != nil {
 		return nil, err
 	}

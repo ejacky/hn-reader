@@ -1,4 +1,7 @@
 server/.env
 server/*.exe
 server/*.db
+server/cloud/.env
+server/cloud/*.exe
+server/cloud/cloud-server
 installer/*.exe

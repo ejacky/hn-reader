@@ -5,11 +5,15 @@
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action, payload }, (response) => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          const err = new Error(chrome.runtime.lastError.message);
+          err.status = 0;
+          reject(err);
           return;
         }
         if (!response || !response.ok) {
-          reject(new Error(response?.error || 'Unknown error'));
+          const err = new Error(response?.error || 'Unknown error');
+          err.status = response?.status || 0;
+          reject(err);
           return;
         }
         resolve(response.data);
@@ -118,8 +122,15 @@
           await sendSignal('comment', hnId, 'comment_summary_viewed', 2, { author });
         } catch (err) {
           console.error('HN Reader comment summary:', err);
+          if (err.status === 429) {
+            btn.textContent = ' [额度已用完]';
+            btn.style.color = '#e00';
+            btn.title = '本月免费额度已用完，升级到 Pro 继续使用';
+          }
         } finally {
-          btn.textContent = ' [summarize]';
+          if (btn.textContent === ' [loading...]') {
+            btn.textContent = ' [summarize]';
+          }
         }
       });
 

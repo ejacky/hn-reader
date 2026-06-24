@@ -37,25 +37,23 @@ func main() {
 		return
 	}
 
-	// When running as a Windows service, redirect log output to a file
-	// early so we can capture log output from config loading.
 	if *runServiceFlag {
 		setupLogging()
 	}
 
-	cfg := config.Load()
+	cfg := config.LoadLocal()
 
-	st, err := storage.New(cfg.DatabasePath)
+	repo, err := storage.NewSqlite(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
-	defer st.Close()
+	defer repo.Close()
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.Use(corsMiddleware())
 
-	server := api.New(cfg, st, Version)
+	server := api.NewLocal(cfg, repo, Version)
 	server.RegisterRoutes(r)
 
 	addr := ":" + cfg.Port

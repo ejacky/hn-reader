@@ -1,10 +1,36 @@
 ## Release Title
 
-HN Reader Server v1.0.0 — Windows Installer
+HN Reader v1.1.0 — Cloud Mode & Dual Backend Support
 
 ---
 
 ## Release Notes
+
+### What's new in v1.1.0
+
+- **☁️ Zero-Config Cloud Mode**: Install the extension and start using it immediately. HN Reader automatically creates an anonymous cloud account for you.
+- **💳 Pay-Only-When-Needed**: Basic features are free within the monthly quota. Upgrade prompts only appear when you reach the limit.
+- **🖥️ Local Mode Still Supported**: Privacy-conscious users can switch to local mode from advanced settings; it's kept low-profile so it doesn't burden regular users.
+- **🔐 Authentication & Quotas**: Cloud backend supports anonymous sign-up, API key authentication, and monthly usage quotas.
+- **🚀 Onboarding**: New users see a streamlined welcome page and in-page tooltip on first visit to Hacker News.
+- **🐳 Cloud Server Deployment**: Added `server/cloud/` with PostgreSQL-backed multi-tenant backend and Docker support.
+
+### Extension Installation
+
+1. Install from Chrome Web Store or load `./extension` in developer mode.
+2. Choose **Cloud Mode** or **Local Mode** on first run.
+3. Visit [news.ycombinator.com](https://news.ycombinator.com) and click `[summary]` next to any article.
+
+### Cloud Server Deployment
+
+```bash
+cd server/cloud
+cp .env.example .env
+# edit .env with DATABASE_URL and LLM_API_KEY
+docker-compose up -d
+```
+
+---
 
 ### What's in this release
 

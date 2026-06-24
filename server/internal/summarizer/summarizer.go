@@ -8,16 +8,21 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"hn-reader/internal/config"
 )
 
+// Config holds LLM connection parameters.
+type Config struct {
+	BaseURL string
+	APIKey  string
+	Model   string
+}
+
 type Summarizer struct {
-	config *config.Config
+	config *Config
 	client *http.Client
 }
 
-func New(cfg *config.Config) *Summarizer {
+func New(cfg *Config) *Summarizer {
 	return &Summarizer{
 		config: cfg,
 		client: &http.Client{Timeout: 60 * time.Second},
@@ -95,12 +100,12 @@ Summary:
 }
 
 func (s *Summarizer) callLLM(prompt string) (string, error) {
-	if s.config.LLMAPIKey == "" {
+	if s.config.APIKey == "" {
 		return "", fmt.Errorf("LLM API key not configured")
 	}
 
 	reqBody := map[string]interface{}{
-		"model": s.config.LLMModel,
+		"model": s.config.Model,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
@@ -112,12 +117,12 @@ func (s *Summarizer) callLLM(prompt string) (string, error) {
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", s.config.LLMBaseURL+"/chat/completions", bytes.NewReader(jsonBody))
+	req, err := http.NewRequest("POST", s.config.BaseURL+"/chat/completions", bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.config.LLMAPIKey)
+	req.Header.Set("Authorization", "Bearer "+s.config.APIKey)
 
 	resp, err := s.client.Do(req)
 	if err != nil {

@@ -9,7 +9,15 @@
       "Bash(printf '\\\\xEF\\\\xBB\\\\xBF')",
       "Bash(cat \"E:/my/hn-reader/installer/setup.nsi\")",
       "Bash(cp /tmp/setup_bom.nsi \"E:/my/hn-reader/installer/setup.nsi\")",
-      "Bash(xxd \"E:/my/hn-reader/installer/setup.nsi\")"
+      "Bash(xxd \"E:/my/hn-reader/installer/setup.nsi\")",
+      "WebSearch",
+      "Bash(nslookup hn-reader.app)",
+      "Bash(nslookup api.hn-reader.app)",
+      "WebFetch(domain:tld-list.com)",
+      "WebFetch(domain:www.namecheap.com)",
+      "WebFetch(domain:porkbun.com)",
+      "WebFetch(domain:www.whois.com)",
+      "WebFetch(domain:developers.cloudflare.com)"
     ]
   }
 }

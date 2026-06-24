@@ -1,0 +1,9 @@
+{
+  "name": "hn-reader-mock-cloud",
+  "version": "1.0.0",
+  "description": "Mock cloud server for HN Reader extension development",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

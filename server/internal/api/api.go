@@ -1,8 +1,6 @@
 package api
 
 import (
-	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -18,47 +16,79 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Server holds shared dependencies and works for both local and cloud modes.
 type Server struct {
 	config     *config.Config
-	storage    *storage.Storage
+	repo       storage.Repository
 	summarizer *summarizer.Summarizer
 	fetcher    *fetcher.Fetcher
 	preloader  *preloader.Preloader
 	version    string
 }
 
-func New(cfg *config.Config, st *storage.Storage, version string) *Server {
+// NewLocal creates a Server for the local desktop deployment (SQLite, no auth).
+func NewLocal(cfg *config.Config, repo storage.Repository, version string) *Server {
 	s := &Server{
-		config:     cfg,
-		storage:    st,
-		summarizer: summarizer.New(cfg),
-		fetcher:    fetcher.New(),
-		version:    version,
+		config: cfg,
+		repo:   repo,
+		summarizer: summarizer.New(&summarizer.Config{
+			BaseURL: cfg.LLMBaseURL,
+			APIKey:  cfg.LLMAPIKey,
+			Model:   cfg.LLMModel,
+		}),
+		fetcher: fetcher.New(),
+		version: version,
 	}
-	s.preloader = preloader.New(st, s.fetcher, s.summarizer, 3)
+	s.preloader = preloader.New(repo, s.fetcher, s.summarizer, 3)
 	return s
 }
 
-func (s *Server) RegisterRoutes(r *gin.Engine) {
-	r.GET("/health", s.handleHealth)
-	r.POST("/api/summarize/article", s.handleSummarizeArticle)
-	r.POST("/api/summarize/comment", s.handleSummarizeComment)
-	r.POST("/api/summarize/article/preload", s.handlePreloadArticles)
-	r.GET("/api/summarize/article/preload-status", s.handlePreloadStatus)
-	r.POST("/api/signal", s.handleSignal)
-	r.GET("/api/signal/stats", s.handleSignalStats)
-	r.GET("/api/preference/profile", s.handlePreferenceProfile)
-	r.POST("/api/match/batch", s.handleBatchMatch)
-	r.GET("/api/recommendations", s.handleRecommendations)
+// NewCloud creates a Server for the cloud deployment (Postgres, multi-user, auth).
+func NewCloud(cfg *config.Config, repo storage.Repository, version string) *Server {
+	s := &Server{
+		config: cfg,
+		repo:   repo,
+		summarizer: summarizer.New(&summarizer.Config{
+			BaseURL: cfg.LLMBaseURL,
+			APIKey:  cfg.LLMAPIKey,
+			Model:   cfg.LLMModel,
+		}),
+		fetcher: fetcher.New(),
+		version: version,
+	}
+	s.preloader = preloader.New(repo, s.fetcher, s.summarizer, 3)
+	return s
 }
 
-func (s *Server) handleHealth(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "ok",
-		"version": s.version,
-		"port":    s.config.Port,
-	})
+// RegisterRoutes sets up all HTTP routes.  Auth middleware (if any) is injected
+// by the caller before this is called (for cloud) or is a no-op (for local).
+func (s *Server) RegisterRoutes(r *gin.Engine) {
+	r.GET("/health", s.handleHealth)
+	r.POST("/auth/anonymous", s.handleAnonymousAuth)
+
+	api := r.Group("/api")
+	api.Use(s.authMiddleware())
+	api.Use(s.quotaMiddleware())
+	{
+		api.POST("/summarize/article", s.handleSummarizeArticle)
+		api.POST("/summarize/comment", s.handleSummarizeComment)
+		api.POST("/summarize/article/preload", s.handlePreloadArticles)
+		api.GET("/summarize/article/preload-status", s.handlePreloadStatus)
+		api.POST("/signal", s.handleSignal)
+		api.GET("/signal/stats", s.handleSignalStats)
+		api.GET("/preference/profile", s.handlePreferenceProfile)
+		api.POST("/match/batch", s.handleBatchMatch)
+		api.GET("/recommendations", s.handleRecommendations)
+	}
+
+	auth := r.Group("/auth")
+	auth.Use(s.authMiddleware())
+	{
+		auth.GET("/me", s.handleMe)
+	}
 }
+
+// --- Request / Response types ---
 
 type SummarizeArticleReq struct {
 	HNID  int64  `json:"hn_id"`
@@ -68,71 +98,9 @@ type SummarizeArticleReq struct {
 }
 
 type SummarizeArticleResp struct {
-	Summary    string   `json:"summary"`
-	KeyPoints  []string `json:"key_points"`
-	Cached     bool     `json:"cached"`
-}
-
-func (s *Server) handleSummarizeArticle(c *gin.Context) {
-	var req SummarizeArticleReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if req.Lang == "" {
-		req.Lang = "zh"
-	}
-
-	existing, err := s.storage.GetArticleByHNID(req.HNID, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if existing != nil && existing.Summary != "" {
-		var kps []string
-		if existing.KeyPoints != "" {
-			json.Unmarshal([]byte(existing.KeyPoints), &kps)
-		}
-		c.JSON(http.StatusOK, SummarizeArticleResp{
-			Summary:   existing.Summary,
-			KeyPoints: kps,
-			Cached:    true,
-		})
-		return
-	}
-
-	content, err := s.fetcher.FetchArticle(req.URL)
-	if err != nil {
-		log.Printf("fetch article failed: %v", err)
-		content = ""
-	}
-
-	summary, keyPoints, err := s.summarizer.SummarizeArticle(req.Title, content, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	kpJSON, _ := json.Marshal(keyPoints)
-	article := &storage.Article{
-		HNID:           req.HNID,
-		URL:            req.URL,
-		Title:          req.Title,
-		FetchedContent: content,
-		Summary:        summary,
-		KeyPoints:      string(kpJSON),
-		Lang:           req.Lang,
-	}
-	if err := s.storage.SaveArticle(article); err != nil {
-		log.Printf("save article failed: %v", err)
-	}
-
-	c.JSON(http.StatusOK, SummarizeArticleResp{
-		Summary:   summary,
-		KeyPoints: keyPoints,
-		Cached:    false,
-	})
+	Summary   string   `json:"summary"`
+	KeyPoints []string `json:"key_points"`
+	Cached    bool     `json:"cached"`
 }
 
 type SummarizeCommentReq struct {
@@ -148,95 +116,12 @@ type SummarizeCommentResp struct {
 	Cached  bool   `json:"cached"`
 }
 
-func (s *Server) handleSummarizeComment(c *gin.Context) {
-	var req SummarizeCommentReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if req.Lang == "" {
-		req.Lang = "zh"
-	}
-
-	existing, err := s.storage.GetCommentByHNID(req.HNID, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if existing != nil && existing.Summary != "" {
-		c.JSON(http.StatusOK, SummarizeCommentResp{Summary: existing.Summary, Cached: true})
-		return
-	}
-
-	summary, err := s.summarizer.SummarizeComment(req.Text, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	comment := &storage.Comment{
-		HNID:      req.HNID,
-		ArticleID: req.ArticleID,
-		Author:    req.Author,
-		RawText:   req.Text,
-		Summary:   summary,
-		Lang:      req.Lang,
-	}
-	if err := s.storage.SaveComment(comment); err != nil {
-		log.Printf("save comment failed: %v", err)
-	}
-
-	c.JSON(http.StatusOK, SummarizeCommentResp{Summary: summary, Cached: false})
-}
-
 type SignalReq struct {
 	TargetType string                 `json:"target_type"`
 	TargetID   int64                  `json:"target_id"`
 	SignalType string                 `json:"signal_type"`
 	Strength   int                    `json:"strength"`
 	Context    map[string]interface{} `json:"context"`
-}
-
-func (s *Server) handleSignal(c *gin.Context) {
-	var req SignalReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctxJSON, _ := json.Marshal(req.Context)
-	signal := &storage.UserSignal{
-		TargetType: req.TargetType,
-		TargetID:   req.TargetID,
-		SignalType: req.SignalType,
-		Strength:   req.Strength,
-		Context:    string(ctxJSON),
-	}
-	if err := s.storage.SaveSignal(signal); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"ok": true})
-}
-
-func (s *Server) handleSignalStats(c *gin.Context) {
-	stats, err := s.storage.GetSignalStats()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, stats)
-}
-
-func (s *Server) handlePreferenceProfile(c *gin.Context) {
-	profile, err := buildProfile(s.storage)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, profile)
 }
 
 type BatchMatchReq struct {
@@ -258,6 +143,186 @@ type MatchResult struct {
 	MatchReason string   `json:"match_reason"`
 }
 
+// --- Handlers ---
+
+func (s *Server) handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"version": s.version,
+		"port":    s.config.Port,
+	})
+}
+
+func (s *Server) handleAnonymousAuth(c *gin.Context) {
+	user, err := s.repo.CreateAnonymousUser()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": user.APIKey})
+}
+
+func (s *Server) handleMe(c *gin.Context) {
+	user := getUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"email":       user.Email,
+		"plan":        user.Plan,
+		"quota_used":  user.QuotaUsed,
+		"quota_limit": user.QuotaLimit,
+	})
+}
+
+func (s *Server) handleSummarizeArticle(c *gin.Context) {
+	var req SummarizeArticleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Lang == "" {
+		req.Lang = "zh"
+	}
+
+	userID := s.getUserID(c)
+	existing, err := s.repo.GetArticle(userID, req.HNID, req.Lang)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if existing != nil && existing.Summary != "" {
+		c.JSON(http.StatusOK, SummarizeArticleResp{
+			Summary:   existing.Summary,
+			KeyPoints: existing.KeyPoints,
+			Cached:    true,
+		})
+		return
+	}
+
+	content, err := s.fetcher.FetchArticle(req.URL)
+	if err != nil {
+		log.Printf("fetch article failed: %v", err)
+		content = ""
+	}
+
+	summary, keyPoints, err := s.summarizer.SummarizeArticle(req.Title, content, req.Lang)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	s.chargeQuota(c, 1)
+
+	article := &storage.Article{
+		HNID:           req.HNID,
+		URL:            req.URL,
+		Title:          req.Title,
+		FetchedContent: content,
+		Summary:        summary,
+		KeyPoints:      keyPoints,
+		Lang:           req.Lang,
+	}
+	if err := s.repo.SaveArticle(userID, article); err != nil {
+		log.Printf("save article failed: %v", err)
+	}
+
+	c.JSON(http.StatusOK, SummarizeArticleResp{
+		Summary:   summary,
+		KeyPoints: keyPoints,
+		Cached:    false,
+	})
+}
+
+func (s *Server) handleSummarizeComment(c *gin.Context) {
+	var req SummarizeCommentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Lang == "" {
+		req.Lang = "zh"
+	}
+
+	userID := s.getUserID(c)
+	existing, err := s.repo.GetComment(userID, req.HNID, req.Lang)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if existing != nil && existing.Summary != "" {
+		c.JSON(http.StatusOK, SummarizeCommentResp{Summary: existing.Summary, Cached: true})
+		return
+	}
+
+	summary, err := s.summarizer.SummarizeComment(req.Text, req.Lang)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	s.chargeQuota(c, 1)
+
+	comment := &storage.Comment{
+		HNID:      req.HNID,
+		ArticleID: req.ArticleID,
+		Author:    req.Author,
+		RawText:   req.Text,
+		Summary:   summary,
+		Lang:      req.Lang,
+	}
+	if err := s.repo.SaveComment(userID, comment); err != nil {
+		log.Printf("save comment failed: %v", err)
+	}
+
+	c.JSON(http.StatusOK, SummarizeCommentResp{Summary: summary, Cached: false})
+}
+
+func (s *Server) handleSignal(c *gin.Context) {
+	var req SignalReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := s.getUserID(c)
+	signal := &storage.UserSignal{
+		TargetType: req.TargetType,
+		TargetID:   req.TargetID,
+		SignalType: req.SignalType,
+		Strength:   req.Strength,
+		Context:    req.Context,
+		CreatedAt:  time.Now(),
+	}
+	if err := s.repo.SaveSignal(userID, signal); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (s *Server) handleSignalStats(c *gin.Context) {
+	userID := s.getUserID(c)
+	stats, err := s.repo.GetSignalStats(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
+func (s *Server) handlePreferenceProfile(c *gin.Context) {
+	userID := s.getUserID(c)
+	profile, err := s.buildProfile(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, profile)
+}
+
 func (s *Server) handleBatchMatch(c *gin.Context) {
 	var req BatchMatchReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -265,7 +330,8 @@ func (s *Server) handleBatchMatch(c *gin.Context) {
 		return
 	}
 
-	profile, err := buildProfile(s.storage)
+	userID := s.getUserID(c)
+	profile, err := s.buildProfile(userID)
 	if err != nil {
 		c.JSON(http.StatusOK, BatchMatchResp{Matches: []MatchResult{}})
 		return
@@ -330,7 +396,8 @@ func (s *Server) handleRecommendations(c *gin.Context) {
 		limit = 10
 	}
 
-	profile, err := buildProfile(s.storage)
+	userID := s.getUserID(c)
+	profile, err := s.buildProfile(userID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"recommendations": []interface{}{}})
 		return
@@ -369,32 +436,79 @@ func (s *Server) handleRecommendations(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"recommendations": recommendations})
 }
 
-func buildProfile(st *storage.Storage) (map[string]interface{}, error) {
-	rows, err := st.Query(`
-		SELECT a.title, a.fetched_content, s.strength, s.signal_type
-		FROM user_signals s
-		JOIN articles a ON s.target_id = a.hn_id
-		WHERE s.target_type = 'article'
-		ORDER BY s.created_at DESC
-		LIMIT 100
-	`)
+func (s *Server) handlePreloadArticles(c *gin.Context) {
+	var req struct {
+		Articles []preloader.ArticleRequest `json:"articles"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := s.getUserID(c)
+	for _, article := range req.Articles {
+		s.preloader.SubmitForUser(userID, article)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"queued": len(req.Articles)})
+}
+
+func (s *Server) handlePreloadStatus(c *gin.Context) {
+	idsParam := c.Query("ids")
+	lang := c.DefaultQuery("lang", "zh")
+	if idsParam == "" {
+		c.JSON(http.StatusOK, gin.H{"ready_ids": []int64{}})
+		return
+	}
+
+	var hnIDs []int64
+	for _, part := range strings.Split(idsParam, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			continue
+		}
+		hnIDs = append(hnIDs, id)
+	}
+
+	userID := s.getUserID(c)
+	readyIDs, err := s.preloader.IsCachedForUser(userID, hnIDs, lang)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ready_ids": readyIDs})
+}
+
+// --- helpers ---
+
+// getUserID returns the user ID from the context, or empty string for local mode.
+func (s *Server) getUserID(c *gin.Context) string {
+	u := getUser(c)
+	if u == nil {
+		return ""
+	}
+	return u.ID
+}
+
+// buildProfile extracts a preference profile from recent user signals.
+func (s *Server) buildProfile(userID string) (map[string]interface{}, error) {
+	signals, err := s.repo.GetRecentSignals(userID, 100)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	topicFreq := make(map[string]int)
-	authorFreq := make(map[string]int)
-	for rows.Next() {
-		var title, content string
-		var strength int
-		var signalType string
-		if err := rows.Scan(&title, &content, &strength, &signalType); err != nil {
-			continue
-		}
-		words := extractKeywords(title + " " + content)
+	for _, sig := range signals {
+		ctx := sig.Context
+		title, _ := ctx["title"].(string)
+		words := extractKeywords(title)
 		for _, w := range words {
-			topicFreq[w] += strength
+			topicFreq[w] += sig.Strength
 		}
 	}
 
@@ -411,7 +525,7 @@ func buildProfile(st *storage.Storage) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"topics":      topTopics,
 		"tech_stacks": []string{},
-		"authors":     authorFreqToList(authorFreq),
+		"authors":     []string{},
 		"updated_at":  time.Now().Format(time.RFC3339),
 	}, nil
 }
@@ -435,77 +549,4 @@ func extractKeywords(text string) []string {
 		}
 	}
 	return keywords
-}
-
-func authorFreqToList(freq map[string]int) []string {
-	var authors []string
-	for a := range freq {
-		authors = append(authors, a)
-	}
-	return authors
-}
-
-func (s *Server) fetchContent(url string) (string, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	text := string(body)
-	if len(text) > 10000 {
-		text = text[:10000]
-	}
-	return text, nil
-}
-
-func (s *Server) handlePreloadArticles(c *gin.Context) {
-	type preloadReq struct {
-		Articles []preloader.ArticleRequest `json:"articles"`
-	}
-	var req preloadReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	for _, article := range req.Articles {
-		s.preloader.Submit(article)
-	}
-
-	c.JSON(http.StatusOK, gin.H{"queued": len(req.Articles)})
-}
-
-func (s *Server) handlePreloadStatus(c *gin.Context) {
-	idsParam := c.Query("ids")
-	if idsParam == "" {
-		c.JSON(http.StatusOK, gin.H{"ready_ids": []int64{}})
-		return
-	}
-
-	var hnIDs []int64
-	for _, part := range strings.Split(idsParam, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		id, err := strconv.ParseInt(part, 10, 64)
-		if err != nil {
-			continue
-		}
-		hnIDs = append(hnIDs, id)
-	}
-
-	lang := c.DefaultQuery("lang", "zh")
-	readyIDs, err := s.preloader.IsCached(hnIDs, lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"ready_ids": readyIDs})
 }

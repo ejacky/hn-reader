@@ -7,11 +7,15 @@
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action, payload }, (response) => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          const err = new Error(chrome.runtime.lastError.message);
+          err.status = 0;
+          reject(err);
           return;
         }
         if (!response || !response.ok) {
-          reject(new Error(response?.error || 'Unknown error'));
+          const err = new Error(response?.error || 'Unknown error');
+          err.status = response?.status || 0;
+          reject(err);
           return;
         }
         resolve(response.data);
@@ -33,11 +37,6 @@
     }
   }
 
-  async function getServerUrl() {
-    const result = await chrome.storage.local.get(['hn_reader_server_url']);
-    return result['hn_reader_server_url'] || 'http://localhost:8080';
-  }
-
   async function fetchSummary(hnId, url, title) {
     const result = await chrome.storage.local.get(['hn_reader_language']);
     const lang = result['hn_reader_language'] || 'zh';
@@ -46,13 +45,8 @@
 
   async function preloadArticles(articles) {
     if (articles.length === 0) return;
-    const serverUrl = await getServerUrl();
     try {
-      fetch(`${serverUrl}/api/summarize/article/preload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ articles })
-      }).catch(() => {});
+      await sendToBg('preloadArticles', { articles });
     } catch (e) {
       console.error('[HN Reader] preload request failed:', e);
     }
@@ -60,11 +54,8 @@
 
   async function pollPreloadStatus(articleIds, lang) {
     if (articleIds.length === 0) return;
-    const serverUrl = await getServerUrl();
     try {
-      const resp = await fetch(`${serverUrl}/api/summarize/article/preload-status?ids=${articleIds.join(',')}&lang=${lang}`);
-      if (!resp.ok) return;
-      const data = await resp.json();
+      const data = await sendToBg('preloadStatus', { ids: articleIds.join(','), lang });
       if (data.ready_ids) {
         data.ready_ids.forEach(id => {
           const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${id}"]`);
@@ -82,6 +73,46 @@
     } catch (e) {
       console.error('[HN Reader] preload status poll failed:', e);
     }
+  }
+
+  function showQuotaExceededTip(targetBtn) {
+    // 移除已存在的提示
+    const existing = document.getElementById('hn-reader-quota-tip');
+    if (existing) existing.remove();
+
+    const tip = document.createElement('div');
+    tip.id = 'hn-reader-quota-tip';
+    tip.className = 'hn-reader-popup';
+    tip.style.cssText = `
+      position: fixed;
+      z-index: 99999;
+      background: #fff;
+      border: 1px solid #ff6600;
+      border-radius: 6px;
+      padding: 12px;
+      width: 260px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      font-family: Verdana, Geneva, sans-serif;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #000;
+    `;
+    tip.innerHTML = `
+      <div style="font-weight:bold;color:#ff6600;margin-bottom:6px;">本月免费额度已用完</div>
+      <div style="margin-bottom:10px;color:#666;">升级到 Pro 可继续使用 AI 摘要和高级匹配功能。</div>
+      <button id="hn-reader-quota-close" style="background:#ff6600;color:#fff;border:none;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:11px;">知道了</button>
+    `;
+
+    const rect = targetBtn.getBoundingClientRect();
+    tip.style.top = (rect.bottom + 6) + 'px';
+    tip.style.left = rect.left + 'px';
+    document.body.appendChild(tip);
+
+    document.getElementById('hn-reader-quota-close').addEventListener('click', () => tip.remove());
+
+    setTimeout(() => {
+      if (tip.parentNode) tip.remove();
+    }, 8000);
   }
 
   function setSummaryBtnState(hnId, active) {
@@ -273,6 +304,11 @@
           return;
         }
 
+        if (btn.dataset.hnReaderQuotaExceeded === 'true') {
+          showQuotaExceededTip(btn);
+          return;
+        }
+
         btn.textContent = ' [loading...]';
         try {
           const data = await fetchSummary(hnId, url, title);
@@ -285,9 +321,25 @@
           await sendSignal('article', hnId, 'summary_viewed', 1, { title });
         } catch (err) {
           console.error('[HN Reader] summarize error:', err);
-          alert('Failed to summarize: ' + err.message);
+          if (err.status === 429) {
+            btn.textContent = ' [额度已用完]';
+            btn.style.color = '#e00';
+            btn.title = '点击打开扩展，升级到 Pro 继续使用';
+            btn.dataset.hnReaderQuotaExceeded = 'true';
+          } else {
+            btn.textContent = ' [failed]';
+            btn.style.color = '#e00';
+            btn.title = '摘要失败：' + err.message;
+            setTimeout(() => {
+              btn.textContent = ' [summary]';
+              btn.style.color = '#ff6600';
+              btn.title = '';
+            }, 3000);
+          }
         } finally {
-          btn.textContent = ' [summary]';
+          if (btn.textContent === ' [loading...]') {
+            btn.textContent = ' [summary]';
+          }
         }
       });
 
@@ -403,13 +455,82 @@
     return path !== '/fave' && path !== '/favorites';
   }
 
-  function init() {
+  async function shouldShowOnboarding() {
+    try {
+      const result = await chrome.storage.local.get(['hn_reader_onboarding_shown']);
+      return !result['hn_reader_onboarding_shown'];
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function markOnboardingShown() {
+    try {
+      await chrome.storage.local.set({ 'hn_reader_onboarding_shown': true });
+    } catch (e) {
+      console.error('[HN Reader] mark onboarding failed', e);
+    }
+  }
+
+  function showOnboardingTooltip() {
+    if (document.getElementById('hn-reader-onboarding')) return;
+
+    const card = document.createElement('div');
+    card.id = 'hn-reader-onboarding';
+    card.className = 'hn-reader-popup';
+    card.style.cssText = `
+      position: fixed;
+      z-index: 99999;
+      bottom: 24px;
+      right: 24px;
+      width: 320px;
+      background: #fff;
+      border: 1px solid #ff6600;
+      border-radius: 6px;
+      padding: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      font-family: Verdana, Geneva, sans-serif;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #000;
+    `;
+
+    card.innerHTML = `
+      <div style="font-weight:bold;font-size:13px;margin-bottom:8px;color:#ff6600;">👋 HN Reader 已就绪</div>
+      <ul style="margin:0 0 12px 16px;padding:0;">
+        <li>点击 <strong>[summary]</strong> 查看 AI 摘要</li>
+        <li>橙色边框 = 可能感兴趣的文章</li>
+        <li>点击扩展图标查看推荐和数据</li>
+      </ul>
+      <button id="hn-reader-onboarding-close" style="background:#ff6600;color:#fff;border:none;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:11px;">知道了，不再显示</button>
+    `;
+
+    document.body.appendChild(card);
+
+    document.getElementById('hn-reader-onboarding-close').addEventListener('click', () => {
+      markOnboardingShown();
+      card.remove();
+    });
+
+    // 10 秒后自动消失
+    setTimeout(() => {
+      if (card.parentNode) {
+        card.remove();
+      }
+    }, 10000);
+  }
+
+  async function init() {
     console.log('[HN Reader] init() called, readyState:', document.readyState);
     injectSummaryButtons();
     applyInterestMatches();
     // 延迟 2 秒后触发预加载/状态查询，等页面稳定
     // startPreload 内部会自己决定是否发送新的预加载请求；收藏页只查已有状态
     setTimeout(startPreload, 2000);
+
+    if (await shouldShowOnboarding()) {
+      showOnboardingTooltip();
+    }
   }
 
   if (document.readyState === 'loading') {
