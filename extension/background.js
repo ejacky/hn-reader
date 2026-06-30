@@ -114,13 +114,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ ok: true, data: await apiRequest('GET', '/api/signal/stats') });
           break;
         case 'getRecommendations':
-          sendResponse({ ok: true, data: await apiRequest('GET', `/api/recommendations?limit=${request.limit || 10}`) });
+          sendResponse({ ok: true, data: await apiRequest('GET', `/api/recommendations?limit=${request.payload?.limit || 10}`) });
           break;
         case 'preloadArticles':
           sendResponse({ ok: true, data: await apiRequest('POST', '/api/summarize/article/preload', request.payload) });
           break;
         case 'preloadStatus':
-          sendResponse({ ok: true, data: await apiRequest('GET', `/api/summarize/article/preload-status?ids=${request.ids}&lang=${request.lang}`) });
+          sendResponse({ ok: true, data: await apiRequest('GET', `/api/summarize/article/preload-status?ids=${request.payload.ids}&lang=${request.payload.lang}`) });
           break;
         case 'getConfig':
           sendResponse({ ok: true, data: await getReaderConfig() });
