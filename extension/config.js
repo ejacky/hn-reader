@@ -13,14 +13,16 @@ const CONFIG = {
     CLOUD_TOKEN: 'hn_reader_cloud_token',
     CLOUD_EMAIL: 'hn_reader_cloud_email',
     SERVER_URL: 'hn_reader_server_url',
-    LANGUAGE: 'hn_reader_language'
+    LANGUAGE: 'hn_reader_language',
+    AUTO_PRELOAD: 'hn_reader_auto_preload'
   },
 
   // 默认值
   DEFAULTS: {
     MODE: 'cloud',
     SERVER_URL: 'http://localhost:8080',
-    LANGUAGE: 'zh'
+    LANGUAGE: 'zh',
+    AUTO_PRELOAD: false
   }
 };
 

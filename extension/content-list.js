@@ -407,6 +407,11 @@
   }
 
   async function startPreload() {
+    const autoPreload = await chrome.storage.local.get(['hn_reader_auto_preload']);
+    if (!autoPreload['hn_reader_auto_preload']) {
+      return;
+    }
+
     const rows = document.querySelectorAll('.athing');
     const articles = [];
     rows.forEach(row => {

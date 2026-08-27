@@ -30,6 +30,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const connIndicator = document.getElementById('connIndicator');
   const connText = document.getElementById('connText');
 
+  // Auto preload toggle
+  const autoPreloadToggle = document.getElementById('autoPreloadToggle');
+  const autoPreloadResult = await chrome.storage.local.get([CONFIG.KEYS.AUTO_PRELOAD]);
+  autoPreloadToggle.checked = !!autoPreloadResult[CONFIG.KEYS.AUTO_PRELOAD];
+
+  autoPreloadToggle.addEventListener('change', async () => {
+    await chrome.storage.local.set({ [CONFIG.KEYS.AUTO_PRELOAD]: autoPreloadToggle.checked });
+    statusEl.textContent = '已保存';
+    statusEl.style.color = '#008000';
+    setTimeout(() => statusEl.textContent = '', 2000);
+  });
+
   // Load config
   let cfg = await getReaderConfig();
 
