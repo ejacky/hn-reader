@@ -317,6 +317,7 @@
           card.style.top = (rect.bottom + 4) + 'px';
           card.style.left = rect.left + 'px';
           document.body.appendChild(card);
+          btn.dataset.hnReaderPreloaded = 'true';
           setSummaryBtnState(hnId, true);
           await sendSignal('article', hnId, 'summary_viewed', 1, { title });
         } catch (err) {
@@ -407,11 +408,6 @@
   }
 
   async function startPreload() {
-    const autoPreload = await chrome.storage.local.get(['hn_reader_auto_preload']);
-    if (!autoPreload['hn_reader_auto_preload']) {
-      return;
-    }
-
     const rows = document.querySelectorAll('.athing');
     const articles = [];
     rows.forEach(row => {
@@ -431,27 +427,34 @@
 
     if (articles.length === 0) return;
 
-    const result = await chrome.storage.local.get(['hn_reader_language']);
+    const result = await chrome.storage.local.get(['hn_reader_language', 'hn_reader_auto_preload']);
     const lang = result['hn_reader_language'] || 'zh';
+    const autoPreload = !!result['hn_reader_auto_preload'];
 
-    // 只在非收藏页面提交新的预加载请求；收藏页文章可能已在内存或数据库中总结过
-    if (shouldPreloadNewArticles()) {
+    const allIds = articles.map(a => a.hn_id);
+
+    // 只在开启自动预加载且非收藏页面时提交新的预加载请求；收藏页文章可能已总结过
+    if (autoPreload && shouldPreloadNewArticles()) {
       const batch = articles.slice(0, 15);
       batch.forEach(a => a.lang = lang);
       preloadArticles(batch);
     }
 
-    // 轮询当前页全部文章的已总结状态（收藏页也查，以复用已有结果）
-    const allIds = articles.map(a => a.hn_id);
+    // 总是查询当前页文章的已总结状态，刷新后恢复绿色标记
+    // （手动加载的文章也会存入服务端缓存，可据此还原状态）
     pollPreloadStatus(allIds, lang);
-    const intervalId = setInterval(() => {
-      pollPreloadStatus(allIds, lang);
-    }, 3000);
 
-    // 页面卸载时停止轮询
-    window.addEventListener('beforeunload', () => {
-      clearInterval(intervalId);
-    });
+    // 仅开启自动预加载时才持续轮询，等待后台预加载完成
+    if (autoPreload) {
+      const intervalId = setInterval(() => {
+        pollPreloadStatus(allIds, lang);
+      }, 3000);
+
+      // 页面卸载时停止轮询
+      window.addEventListener('beforeunload', () => {
+        clearInterval(intervalId);
+      });
+    }
   }
 
   function shouldPreloadNewArticles() {
