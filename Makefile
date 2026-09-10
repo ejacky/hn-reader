@@ -1,15 +1,15 @@
-VERSION = 1.0.0
+VERSION = 1.1.0
 
 .PHONY: build run dev extension clean install-service uninstall-service start-service release
 
 build:
-	cd server && go build -ldflags "-X main.Version=$(VERSION)" -o hn-reader.exe .
+	cd server && go build -ldflags "-X main.Version=$(VERSION)" -o hn-reader.exe ./cmd/hn-reader
 
 run: build
 	cd server && .\hn-reader.exe
 
 dev:
-	cd server && go run -ldflags "-X main.Version=$(VERSION)" .
+	cd server && go run -ldflags "-X main.Version=$(VERSION)" ./cmd/hn-reader
 
 extension:
 	@echo "Load extension from ./extension in Chrome developer mode"

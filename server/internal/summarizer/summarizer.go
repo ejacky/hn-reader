@@ -2,6 +2,8 @@ package summarizer
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,15 +20,29 @@ type Config struct {
 }
 
 type Summarizer struct {
-	config *Config
-	client *http.Client
+	config    *Config
+	client    *http.Client
+	sessionID string
 }
 
 func New(cfg *Config) *Summarizer {
 	return &Summarizer{
-		config: cfg,
-		client: &http.Client{Timeout: 60 * time.Second},
+		config:    cfg,
+		client:    &http.Client{Timeout: 60 * time.Second},
+		sessionID: newSessionID(),
 	}
+}
+
+// newSessionID returns a random hex ID sent as the x-opencode-session header.
+// OpenCode Go requires this header to route requests efficiently (see
+// https://opencode.ai/docs/go/#where-can-i-use-it); a per-process ID keeps it
+// stable for the lifetime of the server.
+func newSessionID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("hn-reader-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b[:])
 }
 
 func (s *Summarizer) SummarizeArticle(title, content, lang string) (string, []string, error) {
@@ -123,6 +139,12 @@ func (s *Summarizer) callLLM(prompt string) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.config.APIKey)
+	// OpenCode Go requires clients to identify themselves with their own
+	// user agent and to send a stable x-opencode-session per session so
+	// requests can be routed efficiently (https://opencode.ai/docs/go/).
+	// Other providers ignore these headers.
+	req.Header.Set("User-Agent", "hn-reader/1.0")
+	req.Header.Set("x-opencode-session", s.sessionID)
 
 	resp, err := s.client.Do(req)
 	if err != nil {

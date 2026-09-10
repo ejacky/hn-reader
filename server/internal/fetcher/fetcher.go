@@ -24,7 +24,8 @@ type HNStory struct {
 func New() *Fetcher {
 	return &Fetcher{
 		client: &http.Client{
-			Timeout: 15 * time.Second,
+			// 15s is too tight for slow sites; allow 45s before giving up.
+			Timeout: 45 * time.Second,
 		},
 	}
 }
