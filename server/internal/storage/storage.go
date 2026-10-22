@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -56,7 +57,7 @@ func (s *SqliteRepo) Begin() (*sql.Tx, error) {
 
 // --- User (all return ErrNotSupported for local mode) ---
 
-func (s *SqliteRepo) CreateAnonymousUser() (*User, error) {
+func (s *SqliteRepo) CreateAnonymousUser(quotaLimit int) (*User, error) {
 	return nil, fmt.Errorf("user management is not supported in local mode")
 }
 
@@ -70,6 +71,34 @@ func (s *SqliteRepo) GetUserQuota(userID string) (*User, error) {
 
 func (s *SqliteRepo) IncrementQuotaUsed(userID string, n int) error {
 	return fmt.Errorf("user management is not supported in local mode")
+}
+
+func (s *SqliteRepo) ReserveQuota(userID string, n int) (used, limit int, ok bool, err error) {
+	// Local mode is single-user and has no quota.
+	return 0, 0, true, nil
+}
+
+func (s *SqliteRepo) ReleaseQuota(userID string, n int) error { return nil }
+
+func (s *SqliteRepo) GetUserData(userID string) (*UserData, error) {
+	return nil, fmt.Errorf("account export is not supported in local mode")
+}
+
+func (s *SqliteRepo) DeleteUser(userID string) error {
+	return fmt.Errorf("account deletion is not supported in local mode")
+}
+
+func (s *SqliteRepo) GetGlobalArticle(hnID int64, lang string) (*Article, error) {
+	// Local mode is single-user, so the per-user cache is the global cache.
+	return s.GetArticle("", hnID, lang)
+}
+
+func (s *SqliteRepo) SaveGlobalArticle(a *Article) error {
+	return s.SaveArticle("", a)
+}
+
+func (s *SqliteRepo) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
 }
 
 // --- Article ---

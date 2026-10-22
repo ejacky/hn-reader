@@ -2,13 +2,17 @@ name: Build and Push Cloud Server
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
-      - 'server/cloud/**'
+      - 'server/**'
+      - 'deploy/**'
       - '.github/workflows/cloud-server.yml'
   pull_request:
     paths:
-      - 'server/cloud/**'
+      - 'server/**'
+      - 'deploy/**'
+      - '.github/workflows/cloud-server.yml'
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -17,22 +21,40 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     defaults:
       run:
-        working-directory: server/cloud
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.26.x'
+          cache-dependency-path: server/go.sum
 
-      - name: Run tests
+      - name: Test (local mode)
         run: go test ./...
 
-      - name: Build binary
-        run: go build -o cloud-server ./cmd/server
+      - name: Test (cloud mode)
+        run: go test -tags cloud ./...
+
+      - name: Vet (cloud mode)
+        run: go vet -tags cloud ./...
+
+      - name: Build cloud binary
+        run: go build -tags cloud -trimpath -o /tmp/cloud-server ./cmd/hn-reader-cloud
+
+      - name: Ensure cloud build requires the cloud tag
+        run: |
+          if go build -o /tmp/cloud-server-no-tag ./cmd/hn-reader-cloud 2>/dev/null; then
+            echo "::error::cloud server built without -tags cloud; this would ship the local no-op auth"
+            exit 1
+          fi
+          echo "OK: cloud binary requires -tags cloud"
 
       - name: Set up Docker Buildx
         if: github.event_name == 'push'
@@ -60,7 +82,8 @@ jobs:
         if: github.event_name == 'push'
         uses: docker/build-push-action@v5
         with:
-          context: ./server/cloud
+          context: server
+          file: server/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

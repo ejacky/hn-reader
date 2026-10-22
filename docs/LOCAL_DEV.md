@@ -2,7 +2,7 @@
 
 ## 概述
 
-扩展默认连接生产云服务 `https://api.hn-reader.app`。本地调试时需要把扩展指向本地后端。
+扩展默认连接生产云服务 `https://hn-reader.whoareyou.ren`。本地调试时需要把扩展指向本地后端。
 
 所有 API 请求都经过 `background.js` service worker 代理，因此只要 `manifest.json` 声明了本地域名权限，就能正常通信。
 
@@ -71,41 +71,32 @@ CREATE USER hn_reader WITH PASSWORD 'hn_reader';
 GRANT ALL PRIVILEGES ON DATABASE hn_reader TO hn_reader;
 ```
 
-或者用 Docker：
+或者用 Docker（在仓库根目录执行）：
 
 ```bash
-cd server/cloud
-docker-compose up -d db
+docker compose -f server/docker-compose.yml up -d db
 ```
 
 ### 2. 配置环境变量
 
+云服务直接读环境变量：
+
 ```bash
-cd server/cloud
-cp .env.example .env
-```
-
-编辑 `.env`：
-
-```env
-PORT=8080
-DATABASE_URL=postgres://hn_reader:hn_reader@localhost:5432/hn_reader?sslmode=disable
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_API_KEY=sk-your-key
-LLM_MODEL=gpt-4o-mini
+cd server
+export PORT=8080
+export DATABASE_URL=postgres://hn_reader:hn_reader@localhost:5432/hn_reader?sslmode=disable
+export LLM_BASE_URL=https://api.openai.com/v1
+export LLM_API_KEY=sk-your-key
+export LLM_MODEL=gpt-4o-mini
 ```
 
 ### 3. 启动 cloud-server
 
 ```bash
-# Windows
-cd server/cloud
-/d/go-dev/bin/go.exe build -o cloud-server.exe ./cmd/server
+cd server
+# 必须带 -tags cloud，否则不会编译云鉴权实现（当前不带 tag 会直接编译失败）
+go build -tags cloud -o cloud-server.exe ./cmd/hn-reader-cloud
 ./cloud-server.exe
-
-# Linux / macOS
-go build -o cloud-server ./cmd/server
-./cloud-server
 ```
 
 ### 4. 修改扩展指向本地 cloud-server
@@ -185,14 +176,14 @@ CLOUD_BASE_URL: 'http://localhost:8080'
 
 ```js
 // extension/config.js
-CLOUD_BASE_URL: 'https://api.hn-reader.app'
+CLOUD_BASE_URL: 'https://hn-reader.whoareyou.ren'
 ```
 
 ```json
 // extension/manifest.json
 "host_permissions": [
   "https://news.ycombinator.com/*",
-  "https://api.hn-reader.app/*"
+  "https://hn-reader.whoareyou.ren/*"
 ]
 ```
 
@@ -201,5 +192,5 @@ CLOUD_BASE_URL: 'https://api.hn-reader.app'
 ## 推荐开发流程
 
 1. 日常 UI/交互调试：使用 `server/mock-cloud`（启动快、不消耗 LLM 额度）
-2. 后端逻辑/API 调试：使用 `server/cloud` + 本地 PostgreSQL
+2. 后端逻辑/API 调试：使用 `server`（`-tags cloud`）+ 本地 PostgreSQL
 3. 集成测试：先用 mock 验证流程，再用真实 cloud-server 验证 LLM 摘要效果

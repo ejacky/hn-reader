@@ -5,7 +5,7 @@
 
 const CONFIG = {
   // 云服务默认地址，部署后可修改
-  CLOUD_BASE_URL: 'https://api.hn-reader.app',
+  CLOUD_BASE_URL: 'https://hn-reader.whoareyou.ren',
 
   // local storage keys
   KEYS: {

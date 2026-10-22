@@ -1,5 +1,4 @@
 const DOWNLOAD_URL = 'https://github.com/ejacky/hn-reader/releases/latest';
-const UPGRADE_URL = 'https://hn-reader.app/upgrade'; // 占位，后续替换为真实支付页
 
 document.addEventListener('DOMContentLoaded', async () => {
   const statusEl = document.getElementById('status');
@@ -12,10 +11,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const quotaSection = document.getElementById('quotaSection');
   const quotaFill = document.getElementById('quotaFill');
   const quotaText = document.getElementById('quotaText');
-  const upgradeCard = document.getElementById('upgradeCard');
-  const upgradeBtn = document.getElementById('upgradeBtn');
-  const quotaWarning = document.getElementById('quotaWarning');
-  const upgradeWarningBtn = document.getElementById('upgradeWarningBtn');
+  const quotaExhausted = document.getElementById('quotaExhausted');
+  const exportDataBtn = document.getElementById('exportDataBtn');
+  const deleteAccountBtn = document.getElementById('deleteAccountBtn');
   const cloudAccountStatus = document.getElementById('cloudAccountStatus');
 
   // Local elements
@@ -103,12 +101,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refreshConnection();
   });
 
-  upgradeBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: UPGRADE_URL });
+  exportDataBtn.addEventListener('click', async () => {
+    const resp = await sendAction('apiRequest', { method: 'GET', path: '/api/account/export' });
+    if (!resp.ok) {
+      statusEl.textContent = '导出失败：' + (resp.error || '未知错误');
+      statusEl.style.color = '#e00';
+      return;
+    }
+    const blob = new Blob([JSON.stringify(resp.data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hn-reader-export.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    statusEl.textContent = '已导出';
+    statusEl.style.color = '#008000';
   });
 
-  upgradeWarningBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: UPGRADE_URL });
+  deleteAccountBtn.addEventListener('click', async () => {
+    if (!confirm('确定删除云端账户及所有阅读数据？此操作不可恢复。')) return;
+    const resp = await sendAction('apiRequest', { method: 'DELETE', path: '/api/account' });
+    if (!resp.ok) {
+      statusEl.textContent = '删除失败：' + (resp.error || '未知错误');
+      statusEl.style.color = '#e00';
+      return;
+    }
+    await chrome.storage.local.remove([CONFIG.KEYS.CLOUD_TOKEN]);
+    cloudAccountStatus.textContent = '云端数据已删除';
+    quotaSection.style.display = 'none';
+    quotaExhausted.style.display = 'none';
+    statusEl.textContent = '已删除；下次使用会创建新的匿名账户';
+    statusEl.style.color = '#008000';
   });
 
   async function sendAction(action, payload = {}) {
@@ -158,7 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const { plan, quota_used, quota_limit } = resp.data;
+    const { plan, quota_used, quota_limit, quota_reset_at } = resp.data;
     cloudAccountStatus.textContent = plan === 'free' ? '匿名账户（免费版）' : (plan || '匿名账户');
 
     quotaSection.style.display = 'block';
@@ -167,16 +193,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pct = Math.min(100, Math.round((used / limit) * 100));
     quotaFill.style.width = `${pct}%`;
     quotaFill.style.background = pct >= 90 ? '#e00' : '#ff6600';
-    quotaText.textContent = `${used}/${limit} 次`;
 
-    upgradeCard.style.display = 'none';
-    quotaWarning.style.display = 'none';
+    const reset = quota_reset_at ? new Date(quota_reset_at) : null;
+    const resetText = reset && !isNaN(reset.getTime()) ? ` · ${reset.toLocaleDateString()} 重置` : '';
+    quotaText.textContent = `${used}/${limit} 次${resetText}`;
 
+    quotaExhausted.style.display = used >= limit ? 'block' : 'none';
     if (used >= limit) {
       quotaFill.style.background = '#e00';
-      upgradeCard.style.display = 'block';
-    } else if (pct >= 80) {
-      quotaWarning.style.display = 'block';
     }
   }
 
@@ -225,7 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function hideDataSections() {
-    ['cloudStatsSection', 'cloudRecSection', 'localStatsSection', 'localRecSection', 'quotaSection'].forEach(id => {
+    ['cloudStatsSection', 'cloudRecSection', 'localStatsSection', 'localRecSection', 'quotaSection', 'quotaExhausted'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });

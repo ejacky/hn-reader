@@ -48,16 +48,17 @@
       <div id="quotaText" class="quota-text"></div>
     </div>
 
-    <div class="section upgrade-card" id="upgradeCard" style="display:none;">
+    <div class="section upgrade-card" id="quotaExhausted" style="display:none;">
       <div class="upgrade-title">本月免费额度已用完</div>
-      <div class="upgrade-desc">升级到 Pro 继续享受无限摘要和高级匹配。</div>
-      <button id="upgradeBtn" class="upgrade-btn">升级到 Pro</button>
+      <div class="upgrade-desc">下月 1 日自动重置；已缓存的摘要仍可查看。</div>
     </div>
 
-    <div class="section upgrade-card upgrade-warning" id="quotaWarning" style="display:none;">
-      <div class="upgrade-title">额度即将用完</div>
-      <div class="upgrade-desc">接近限额时建议升级，避免影响使用。</div>
-      <button id="upgradeWarningBtn" class="upgrade-btn">查看方案</button>
+    <div class="section">
+      <label>我的数据</label>
+      <div class="actions">
+        <button id="exportDataBtn" style="background:#fff;color:#666;border:1px solid #ccc;">导出我的数据</button>
+        <button id="deleteAccountBtn" style="background:#fff;color:#c00;border:1px solid #c00;">删除云端数据</button>
+      </div>
     </div>
 
     <div class="actions">

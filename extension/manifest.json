@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "HN Reader - AI Reading Assistant",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup.",
   "permissions": [
     "storage"
   ],
   "host_permissions": [
     "https://news.ycombinator.com/*",
-    "https://api.hn-reader.app/*"
+    "https://hn-reader.whoareyou.ren/*"
   ],
   "background": {
     "service_worker": "background.js"

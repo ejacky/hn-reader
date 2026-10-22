@@ -1,0 +1,6 @@
+.env
+.env.*
+backups/
+Caddyfile.site
+docker-compose.yml
+README.md

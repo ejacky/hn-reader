@@ -1,6 +1,11 @@
+.gotmp/
 server/.env
 server/*.exe
 server/*.db
+server/hn-reader-cloud
+deploy/h43/hn-reader-cloud
+deploy/h43/.env
+deploy/h43/backups/
 server/cloud/.env
 server/cloud/*.exe
 server/cloud/cloud-server

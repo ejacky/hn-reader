@@ -1,6 +1,9 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -24,61 +27,75 @@ type Server struct {
 	fetcher    *fetcher.Fetcher
 	preloader  *preloader.Preloader
 	version    string
+	cloud      bool
+	limiters   *limiters
 }
 
 // NewLocal creates a Server for the local desktop deployment (SQLite, no auth).
 func NewLocal(cfg *config.Config, repo storage.Repository, version string) *Server {
-	s := &Server{
-		config: cfg,
-		repo:   repo,
-		summarizer: summarizer.New(&summarizer.Config{
-			BaseURL: cfg.LLMBaseURL,
-			APIKey:  cfg.LLMAPIKey,
-			Model:   cfg.LLMModel,
-		}),
-		fetcher: fetcher.New(),
-		version: version,
-	}
-	s.preloader = preloader.New(repo, s.fetcher, s.summarizer, 3)
-	return s
+	return newServer(cfg, repo, version, false)
 }
 
 // NewCloud creates a Server for the cloud deployment (Postgres, multi-user, auth).
 func NewCloud(cfg *config.Config, repo storage.Repository, version string) *Server {
+	return newServer(cfg, repo, version, true)
+}
+
+func newServer(cfg *config.Config, repo storage.Repository, version string, cloud bool) *Server {
+	sm := summarizer.New(&summarizer.Config{
+		BaseURL:         cfg.LLMBaseURL,
+		APIKey:          cfg.LLMAPIKey,
+		Model:           cfg.LLMModel,
+		MaxConcurrency:  cfg.LLMMaxConcurrency,
+		DailyBudget:     cfg.LLMDailyBudget,
+		Timeout:         cfg.LLMTimeout,
+		MaxOutputTokens: cfg.LLMMaxOutputTokens,
+	})
+	f := fetcher.New(cfg.HNBaseURL)
 	s := &Server{
-		config: cfg,
-		repo:   repo,
-		summarizer: summarizer.New(&summarizer.Config{
-			BaseURL: cfg.LLMBaseURL,
-			APIKey:  cfg.LLMAPIKey,
-			Model:   cfg.LLMModel,
-		}),
-		fetcher: fetcher.New(),
-		version: version,
+		config:     cfg,
+		repo:       repo,
+		summarizer: sm,
+		fetcher:    f,
+		version:    version,
+		cloud:      cloud,
+		limiters:   newLimiters(cfg),
 	}
-	s.preloader = preloader.New(repo, s.fetcher, s.summarizer, 3)
+	s.preloader = preloader.New(repo, f, sm, 3, preloader.Options{
+		Workers:           3,
+		QueueSize:         cfg.PreloadQueueSize,
+		MaxPendingPerUser: cfg.PreloadMaxPending,
+	})
 	return s
 }
 
-// RegisterRoutes sets up all HTTP routes.  Auth middleware (if any) is injected
-// by the caller before this is called (for cloud) or is a no-op (for local).
+// Close stops background preload work.
+func (s *Server) Close(ctx context.Context) {
+	if s.preloader != nil {
+		s.preloader.Close(ctx)
+	}
+}
+
+// RegisterRoutes sets up all HTTP routes.
 func (s *Server) RegisterRoutes(r *gin.Engine) {
 	r.GET("/health", s.handleHealth)
-	r.POST("/auth/anonymous", s.handleAnonymousAuth)
+	r.POST("/auth/anonymous", s.signupLimit(), s.handleAnonymousAuth)
 
 	api := r.Group("/api")
 	api.Use(s.authMiddleware())
-	api.Use(s.quotaMiddleware())
+	api.Use(s.apiLimit())
 	{
-		api.POST("/summarize/article", s.handleSummarizeArticle)
-		api.POST("/summarize/comment", s.handleSummarizeComment)
-		api.POST("/summarize/article/preload", s.handlePreloadArticles)
+		api.POST("/summarize/article", s.summarizeLimit(), s.handleSummarizeArticle)
+		api.POST("/summarize/comment", s.summarizeLimit(), s.handleSummarizeComment)
+		api.POST("/summarize/article/preload", s.preloadLimit(), s.handlePreloadArticles)
 		api.GET("/summarize/article/preload-status", s.handlePreloadStatus)
-		api.POST("/signal", s.handleSignal)
+		api.POST("/signal", s.signalLimit(), s.handleSignal)
 		api.GET("/signal/stats", s.handleSignalStats)
 		api.GET("/preference/profile", s.handlePreferenceProfile)
 		api.POST("/match/batch", s.handleBatchMatch)
 		api.GET("/recommendations", s.handleRecommendations)
+		api.GET("/account/export", s.accountLimit(), s.handleAccountExport)
+		api.DELETE("/account", s.accountLimit(), s.handleAccountDelete)
 	}
 
 	auth := r.Group("/auth")
@@ -146,17 +163,27 @@ type MatchResult struct {
 // --- Handlers ---
 
 func (s *Server) handleHealth(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+	if err := s.repo.Ping(ctx); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":  "unavailable",
+			"version": s.version,
+			"db":      "error",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
 		"version": s.version,
-		"port":    s.config.Port,
+		"db":      "ok",
 	})
 }
 
 func (s *Server) handleAnonymousAuth(c *gin.Context) {
-	user, err := s.repo.CreateAnonymousUser()
+	user, err := s.repo.CreateAnonymousUser(s.config.FreeQuotaLimit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		s.internalError(c, err, "create anonymous user failed")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"token": user.APIKey})
@@ -168,31 +195,41 @@ func (s *Server) handleMe(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
+	if s.cloud {
+		if fresh, err := s.repo.GetUserQuota(user.ID); err == nil && fresh != nil {
+			user = fresh
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"email":       user.Email,
-		"plan":        user.Plan,
-		"quota_used":  user.QuotaUsed,
-		"quota_limit": user.QuotaLimit,
+		"email":          user.Email,
+		"plan":           user.Plan,
+		"quota_used":     user.QuotaUsed,
+		"quota_limit":    user.QuotaLimit,
+		"quota_reset_at": user.QuotaResetAt,
 	})
 }
 
 func (s *Server) handleSummarizeArticle(c *gin.Context) {
 	var req SummarizeArticleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
 		return
 	}
-	if req.Lang == "" {
-		req.Lang = "zh"
+	req.Lang = normalizeLang(req.Lang)
+	if req.HNID <= 0 || strings.TrimSpace(req.Title) == "" ||
+		len(req.Title) > 500 || len(req.URL) > 2048 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
 	}
 
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s.llmTimeout()+30*time.Second)
+	defer cancel()
+
 	userID := s.getUserID(c)
-	existing, err := s.repo.GetArticle(userID, req.HNID, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if existing != nil && existing.Summary != "" {
+
+	if existing, err := s.repo.GetArticle(userID, req.HNID, req.Lang); err != nil {
+		log.Printf("read user article cache failed: %v", err)
+	} else if existing != nil && existing.Summary != "" {
 		c.JSON(http.StatusOK, SummarizeArticleResp{
 			Summary:   existing.Summary,
 			KeyPoints: existing.KeyPoints,
@@ -200,33 +237,105 @@ func (s *Server) handleSummarizeArticle(c *gin.Context) {
 		})
 		return
 	}
-
-	content, err := s.fetcher.FetchArticle(req.URL)
-	if err != nil {
-		log.Printf("fetch article failed: %v", err)
-		content = ""
-	}
-
-	summary, keyPoints, err := s.summarizer.SummarizeArticle(req.Title, content, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if cached, err := s.repo.GetGlobalArticle(req.HNID, req.Lang); err != nil {
+		log.Printf("read global article cache failed: %v", err)
+	} else if cached != nil && cached.Summary != "" {
+		if err := s.repo.SaveArticle(userID, cached); err != nil {
+			log.Printf("save cached article for user failed: %v", err)
+		}
+		c.JSON(http.StatusOK, SummarizeArticleResp{
+			Summary:   cached.Summary,
+			KeyPoints: cached.KeyPoints,
+			Cached:    true,
+		})
 		return
 	}
 
-	s.chargeQuota(c, 1)
+	canonical := false
+	story, err := s.fetcher.FetchStory(ctx, req.HNID)
+	if err != nil {
+		if errors.Is(err, fetcher.ErrNotStory) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_hn_id"})
+			return
+		}
+		log.Printf("canonical HN lookup failed for %d: %v", req.HNID, err)
+	} else {
+		canonical = true
+		// Use the canonical URL even when it is empty (text post): the client
+		// must not be able to substitute an arbitrary URL for a shared cache key.
+		req.URL = story.URL
+		if story.Title != "" {
+			req.Title = story.Title
+		}
+	}
+
+	if req.URL != "" {
+		if _, err := fetcher.ValidateURL(ctx, req.URL); err != nil {
+			if fetcher.IsBlockedError(err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_url"})
+				return
+			}
+			log.Printf("url validation failed for %s: %v", req.URL, err)
+		}
+	}
+
+	reserved := false
+	if userID != "" {
+		used, limit, ok, err := s.repo.ReserveQuota(userID, 1)
+		if err != nil {
+			s.internalError(c, err, "reserve quota failed")
+			return
+		}
+		if !ok {
+			s.writeQuotaExceeded(c, userID, used, limit)
+			return
+		}
+		reserved = true
+		defer func() {
+			if reserved {
+				if err := s.repo.ReleaseQuota(userID, 1); err != nil {
+					log.Printf("release quota failed: %v", err)
+				}
+			}
+		}()
+	}
+
+	content := ""
+	if req.URL != "" {
+		content, err = s.fetcher.FetchArticle(ctx, req.URL)
+		if err != nil {
+			if fetcher.IsBlockedError(err) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_url"})
+				return
+			}
+			log.Printf("fetch article failed for %s: %v", req.URL, err)
+			content = ""
+		}
+	}
+
+	summary, keyPoints, err := s.summarizer.SummarizeArticle(ctx, req.Title, content, req.Lang)
+	if err != nil {
+		s.writeLLMError(c, err)
+		return
+	}
 
 	article := &storage.Article{
-		HNID:           req.HNID,
-		URL:            req.URL,
-		Title:          req.Title,
-		FetchedContent: content,
-		Summary:        summary,
-		KeyPoints:      keyPoints,
-		Lang:           req.Lang,
+		HNID:      req.HNID,
+		URL:       req.URL,
+		Title:     req.Title,
+		Summary:   summary,
+		KeyPoints: keyPoints,
+		Lang:      req.Lang,
+	}
+	if canonical {
+		if err := s.repo.SaveGlobalArticle(article); err != nil {
+			log.Printf("save global article failed: %v", err)
+		}
 	}
 	if err := s.repo.SaveArticle(userID, article); err != nil {
 		log.Printf("save article failed: %v", err)
 	}
+	reserved = false
 
 	c.JSON(http.StatusOK, SummarizeArticleResp{
 		Summary:   summary,
@@ -238,31 +347,52 @@ func (s *Server) handleSummarizeArticle(c *gin.Context) {
 func (s *Server) handleSummarizeComment(c *gin.Context) {
 	var req SummarizeCommentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
 		return
 	}
-	if req.Lang == "" {
-		req.Lang = "zh"
+	req.Lang = normalizeLang(req.Lang)
+	if req.HNID <= 0 || strings.TrimSpace(req.Text) == "" || len(req.Text) > 20000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
 	}
 
 	userID := s.getUserID(c)
-	existing, err := s.repo.GetComment(userID, req.HNID, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if existing != nil && existing.Summary != "" {
+	if existing, err := s.repo.GetComment(userID, req.HNID, req.Lang); err != nil {
+		log.Printf("read comment cache failed: %v", err)
+	} else if existing != nil && existing.Summary != "" {
 		c.JSON(http.StatusOK, SummarizeCommentResp{Summary: existing.Summary, Cached: true})
 		return
 	}
 
-	summary, err := s.summarizer.SummarizeComment(req.Text, req.Lang)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	reserved := false
+	if userID != "" {
+		used, limit, ok, err := s.repo.ReserveQuota(userID, 1)
+		if err != nil {
+			s.internalError(c, err, "reserve quota failed")
+			return
+		}
+		if !ok {
+			s.writeQuotaExceeded(c, userID, used, limit)
+			return
+		}
+		reserved = true
+		defer func() {
+			if reserved {
+				if err := s.repo.ReleaseQuota(userID, 1); err != nil {
+					log.Printf("release quota failed: %v", err)
+				}
+			}
+		}()
 	}
 
-	s.chargeQuota(c, 1)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s.llmTimeout()+10*time.Second)
+	defer cancel()
+
+	summary, err := s.summarizer.SummarizeComment(ctx, req.Text, req.Lang)
+	if err != nil {
+		s.writeLLMError(c, err)
+		return
+	}
 
 	comment := &storage.Comment{
 		HNID:      req.HNID,
@@ -275,6 +405,7 @@ func (s *Server) handleSummarizeComment(c *gin.Context) {
 	if err := s.repo.SaveComment(userID, comment); err != nil {
 		log.Printf("save comment failed: %v", err)
 	}
+	reserved = false
 
 	c.JSON(http.StatusOK, SummarizeCommentResp{Summary: summary, Cached: false})
 }
@@ -282,7 +413,17 @@ func (s *Server) handleSummarizeComment(c *gin.Context) {
 func (s *Server) handleSignal(c *gin.Context) {
 	var req SignalReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+	if req.TargetID <= 0 || req.TargetType == "" || req.SignalType == "" ||
+		len(req.TargetType) > 32 || len(req.SignalType) > 64 ||
+		req.Strength < 0 || req.Strength > 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	if raw, err := json.Marshal(req.Context); err != nil || len(raw) > 8192 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_context"})
 		return
 	}
 
@@ -296,10 +437,9 @@ func (s *Server) handleSignal(c *gin.Context) {
 		CreatedAt:  time.Now(),
 	}
 	if err := s.repo.SaveSignal(userID, signal); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		s.internalError(c, err, "save signal failed")
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -307,7 +447,7 @@ func (s *Server) handleSignalStats(c *gin.Context) {
 	userID := s.getUserID(c)
 	stats, err := s.repo.GetSignalStats(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		s.internalError(c, err, "get signal stats failed")
 		return
 	}
 	c.JSON(http.StatusOK, stats)
@@ -317,7 +457,7 @@ func (s *Server) handlePreferenceProfile(c *gin.Context) {
 	userID := s.getUserID(c)
 	profile, err := s.buildProfile(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		s.internalError(c, err, "build profile failed")
 		return
 	}
 	c.JSON(http.StatusOK, profile)
@@ -326,7 +466,11 @@ func (s *Server) handlePreferenceProfile(c *gin.Context) {
 func (s *Server) handleBatchMatch(c *gin.Context) {
 	var req BatchMatchReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+	if len(req.Articles) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "too_many_articles"})
 		return
 	}
 
@@ -403,9 +547,12 @@ func (s *Server) handleRecommendations(c *gin.Context) {
 		return
 	}
 
-	stories, err := s.fetcher.FetchHNTopStories()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	stories, err := s.fetcher.FetchHNTopStories(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("fetch HN top stories failed: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "fetch_failed"})
 		return
 	}
 
@@ -441,21 +588,76 @@ func (s *Server) handlePreloadArticles(c *gin.Context) {
 		Articles []preloader.ArticleRequest `json:"articles"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
 		return
+	}
+	max := intOr(s.config.PreloadMaxPerRequest, 20)
+	if len(req.Articles) > max {
+		req.Articles = req.Articles[:max]
 	}
 
 	userID := s.getUserID(c)
+	queued, skipped := 0, 0
+	quotaExceeded := false
+
 	for _, article := range req.Articles {
-		s.preloader.SubmitForUser(userID, article)
+		article.Lang = normalizeLang(article.Lang)
+		if article.HNID <= 0 || strings.TrimSpace(article.Title) == "" ||
+			len(article.Title) > 500 || len(article.URL) > 2048 {
+			skipped++
+			continue
+		}
+
+		if existing, err := s.repo.GetArticle(userID, article.HNID, article.Lang); err == nil && existing != nil && existing.Summary != "" {
+			skipped++
+			continue
+		}
+		if cached, err := s.repo.GetGlobalArticle(article.HNID, article.Lang); err == nil && cached != nil && cached.Summary != "" {
+			if err := s.repo.SaveArticle(userID, cached); err != nil {
+				log.Printf("save preloaded cached article failed: %v", err)
+			}
+			skipped++
+			continue
+		}
+
+		reserved := false
+		if userID != "" {
+			_, _, ok, err := s.repo.ReserveQuota(userID, 1)
+			if err != nil {
+				s.internalError(c, err, "reserve quota failed")
+				return
+			}
+			if !ok {
+				quotaExceeded = true
+				break
+			}
+			reserved = true
+		}
+
+		accepted, reason := s.preloader.SubmitForUser(userID, article, reserved)
+		if !accepted {
+			if reserved {
+				if err := s.repo.ReleaseQuota(userID, 1); err != nil {
+					log.Printf("release preload quota failed: %v", err)
+				}
+			}
+			log.Printf("preload skipped hn_id=%d reason=%s", article.HNID, reason)
+			skipped++
+			continue
+		}
+		queued++
 	}
 
-	c.JSON(http.StatusOK, gin.H{"queued": len(req.Articles)})
+	c.JSON(http.StatusOK, gin.H{
+		"queued":         queued,
+		"skipped":        skipped,
+		"quota_exceeded": quotaExceeded,
+	})
 }
 
 func (s *Server) handlePreloadStatus(c *gin.Context) {
 	idsParam := c.Query("ids")
-	lang := c.DefaultQuery("lang", "zh")
+	lang := normalizeLang(c.DefaultQuery("lang", "zh"))
 	if idsParam == "" {
 		c.JSON(http.StatusOK, gin.H{"ready_ids": []int64{}})
 		return
@@ -468,23 +670,104 @@ func (s *Server) handlePreloadStatus(c *gin.Context) {
 			continue
 		}
 		id, err := strconv.ParseInt(part, 10, 64)
-		if err != nil {
+		if err != nil || id <= 0 {
 			continue
 		}
 		hnIDs = append(hnIDs, id)
 	}
 
 	userID := s.getUserID(c)
-	readyIDs, err := s.preloader.IsCachedForUser(userID, hnIDs, lang)
+	readyIDs, err := s.preloader.IsCachedForUser(c.Request.Context(), userID, hnIDs, lang)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		s.internalError(c, err, "check preload cache failed")
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"ready_ids": readyIDs})
 }
 
+func (s *Server) handleAccountExport(c *gin.Context) {
+	userID := s.getUserID(c)
+	if userID == "" {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "not_supported"})
+		return
+	}
+	data, err := s.repo.GetUserData(userID)
+	if err != nil {
+		s.internalError(c, err, "export account failed")
+		return
+	}
+	if data == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="hn-reader-export.json"`)
+	c.JSON(http.StatusOK, data)
+}
+
+func (s *Server) handleAccountDelete(c *gin.Context) {
+	userID := s.getUserID(c)
+	if userID == "" {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "not_supported"})
+		return
+	}
+	if err := s.repo.DeleteUser(userID); err != nil {
+		s.internalError(c, err, "delete account failed")
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // --- helpers ---
+
+func (s *Server) llmTimeout() time.Duration {
+	if s.config.LLMTimeout > 0 {
+		return s.config.LLMTimeout
+	}
+	return 90 * time.Second
+}
+
+func normalizeLang(lang string) string {
+	if strings.EqualFold(strings.TrimSpace(lang), "en") {
+		return "en"
+	}
+	return "zh"
+}
+
+func (s *Server) writeQuotaExceeded(c *gin.Context, userID string, used, limit int) {
+	reset := ""
+	if u, err := s.repo.GetUserQuota(userID); err == nil && u != nil {
+		reset = u.QuotaResetAt.UTC().Format(time.RFC3339)
+	}
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"error":          "quota_exceeded",
+		"quota_used":     used,
+		"quota_limit":    limit,
+		"quota_reset_at": reset,
+	})
+}
+
+func (s *Server) writeLLMError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, summarizer.ErrBudgetExceeded), errors.Is(err, summarizer.ErrBusy):
+		log.Printf("llm busy: %v", err)
+		c.Header("Retry-After", "5")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":               "service_busy",
+			"retry_after_seconds": 5,
+		})
+	case errors.Is(err, summarizer.ErrAuth):
+		log.Printf("llm auth error: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "llm_unavailable"})
+	default:
+		log.Printf("llm error: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "llm_unavailable"})
+	}
+}
+
+func (s *Server) internalError(c *gin.Context, err error, msg string) {
+	log.Printf("%s: %v", msg, err)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+}
 
 // getUserID returns the user ID from the context, or empty string for local mode.
 func (s *Server) getUserID(c *gin.Context) string {

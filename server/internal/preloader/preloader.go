@@ -1,22 +1,23 @@
 package preloader
 
 import (
+	"context"
+	"errors"
 	"log"
+	"strconv"
 	"sync"
 
 	"hn-reader/internal/fetcher"
+	"hn-reader/internal/flight"
 	"hn-reader/internal/storage"
 	"hn-reader/internal/summarizer"
 )
 
-// Preloader manages background article summarization with controlled concurrency.
-type Preloader struct {
-	sem        chan struct{}  // concurrency limiter
-	inflight   map[int64]bool // hn_ids currently being processed
-	inflightMu sync.RWMutex
-	st         storage.Repository
-	fetcher    *fetcher.Fetcher
-	summarizer *summarizer.Summarizer
+// Options controls the bounded preload queue.
+type Options struct {
+	Workers           int
+	QueueSize         int
+	MaxPendingPerUser int
 }
 
 // ArticleRequest represents a single article to be preloaded.
@@ -27,103 +28,254 @@ type ArticleRequest struct {
 	Lang  string `json:"lang"`
 }
 
-// New creates a Preloader with the given concurrency limit.
-// userID is the owner for cloud mode; pass empty string for local mode.
-func New(st storage.Repository, f *fetcher.Fetcher, sm *summarizer.Summarizer, concurrency int) *Preloader {
-	if concurrency <= 0 {
-		concurrency = 3
+type task struct {
+	userID   string
+	req      ArticleRequest
+	reserved bool
+}
+
+// Preloader manages background article summarization with a bounded queue,
+// per-user pending limits, and cross-user deduplication.
+type Preloader struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	queue chan *task
+	wg    sync.WaitGroup
+
+	flights *flight.Group
+
+	st         storage.Repository
+	fetcher    *fetcher.Fetcher
+	summarizer *summarizer.Summarizer
+
+	maxPending int
+
+	mu       sync.Mutex
+	pending  map[string]int
+	inflight map[string]bool
+	closed   bool
+}
+
+// New creates a Preloader and starts its workers.
+// workers is kept as the fourth argument for compatibility with existing
+// callers; options can override queue and per-user limits.
+func New(st storage.Repository, f *fetcher.Fetcher, sm *summarizer.Summarizer, workers int, opts ...Options) *Preloader {
+	opt := Options{Workers: workers, QueueSize: 200, MaxPendingPerUser: 20}
+	if len(opts) > 0 {
+		if opts[0].Workers > 0 {
+			opt.Workers = opts[0].Workers
+		}
+		if opts[0].QueueSize > 0 {
+			opt.QueueSize = opts[0].QueueSize
+		}
+		if opts[0].MaxPendingPerUser > 0 {
+			opt.MaxPendingPerUser = opts[0].MaxPendingPerUser
+		}
 	}
-	return &Preloader{
-		sem:        make(chan struct{}, concurrency),
-		inflight:   make(map[int64]bool),
+	if opt.Workers <= 0 {
+		opt.Workers = 3
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &Preloader{
+		ctx:        ctx,
+		cancel:     cancel,
+		queue:      make(chan *task, opt.QueueSize),
+		flights:    &flight.Group{},
 		st:         st,
 		fetcher:    f,
 		summarizer: sm,
+		maxPending: opt.MaxPendingPerUser,
+		pending:    make(map[string]int),
+		inflight:   make(map[string]bool),
+	}
+	for i := 0; i < opt.Workers; i++ {
+		go p.worker()
+	}
+	return p
+}
+
+// Submit enqueues an article for local/single-user mode.
+func (p *Preloader) Submit(req ArticleRequest) (bool, string) {
+	return p.SubmitForUser("", req, false)
+}
+
+// SubmitForUser enqueues an article for a user. reserved indicates the caller
+// already reserved one quota unit and the worker must refund it on a cache hit
+// or failure.
+func (p *Preloader) SubmitForUser(userID string, req ArticleRequest, reserved bool) (bool, string) {
+	if req.Lang == "" {
+		req.Lang = "zh"
+	}
+	key := userID + "|" + strconv.FormatInt(req.HNID, 10) + "|" + req.Lang
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return false, "closed"
+	}
+	if p.inflight[key] {
+		return false, "duplicate"
+	}
+	if p.pending[userID] >= p.maxPending {
+		return false, "user_limit"
+	}
+
+	t := &task{userID: userID, req: req, reserved: reserved}
+	select {
+	case p.queue <- t:
+		p.pending[userID]++
+		p.inflight[key] = true
+		p.wg.Add(1)
+		return true, ""
+	default:
+		return false, "queue_full"
 	}
 }
 
-// Submit enqueues an article for background preloading (local/single-user mode).
-func (p *Preloader) Submit(req ArticleRequest) {
-	p.SubmitForUser("", req)
+func (p *Preloader) worker() {
+	for t := range p.queue {
+		p.process(t)
+		p.finish(t)
+	}
 }
 
-// SubmitForUser enqueues an article for a specific user (cloud mode).
-func (p *Preloader) SubmitForUser(userID string, req ArticleRequest) {
+func (p *Preloader) finish(t *task) {
+	key := t.userID + "|" + strconv.FormatInt(t.req.HNID, 10) + "|" + t.req.Lang
+	p.mu.Lock()
+	if p.pending[t.userID] > 1 {
+		p.pending[t.userID]--
+	} else {
+		delete(p.pending, t.userID)
+	}
+	delete(p.inflight, key)
+	p.mu.Unlock()
+	p.wg.Done()
+}
+
+func (p *Preloader) process(t *task) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("preloader: panic for hn_id=%d: %v", t.req.HNID, r)
+			p.refund(t)
+		}
+	}()
+
+	req := t.req
 	if req.Lang == "" {
 		req.Lang = "zh"
 	}
 
-	// Deduplicate in-flight tasks.
-	p.inflightMu.Lock()
-	if p.inflight[req.HNID] {
-		p.inflightMu.Unlock()
+	// Global cache first: a cached summary needs neither HN lookup nor LLM.
+	if cached, err := p.st.GetGlobalArticle(req.HNID, req.Lang); err == nil && cached != nil && cached.Summary != "" {
+		p.saveUser(t.userID, cached)
+		p.refund(t)
 		return
+	} else if err != nil {
+		log.Printf("preloader: global cache read failed for hn_id=%d: %v", req.HNID, err)
 	}
-	p.inflight[req.HNID] = true
-	p.inflightMu.Unlock()
 
-	// Check cache.
-	existing, err := p.st.GetArticle(userID, req.HNID, req.Lang)
+	// Resolve the canonical story. This prevents cache poisoning and keeps
+	// preload fetching on the same URL a direct summary would use.
+	canonical := false
+	story, err := p.fetcher.FetchStory(p.ctx, req.HNID)
 	if err != nil {
-		log.Printf("preloader: cache check failed for %d: %v", req.HNID, err)
-		p.clearInflight(req.HNID)
-		return
-	}
-	if existing != nil && existing.Summary != "" {
-		p.clearInflight(req.HNID)
-		return
-	}
-
-	// Process in background.
-	go p.process(userID, req)
-}
-
-func (p *Preloader) process(userID string, req ArticleRequest) {
-	p.sem <- struct{}{}
-	defer func() { <-p.sem }()
-	defer p.clearInflight(req.HNID)
-
-	content, err := p.fetcher.FetchArticle(req.URL)
-	if err != nil {
-		log.Printf("preloader: fetch article %d failed: %v", req.HNID, err)
-		content = ""
-	}
-
-	summary, keyPoints, err := p.summarizer.SummarizeArticle(req.Title, content, req.Lang)
-	if err != nil {
-		log.Printf("preloader: summarize article %d failed: %v", req.HNID, err)
-		return
-	}
-
-	article := &storage.Article{
-		HNID:           req.HNID,
-		URL:            req.URL,
-		Title:          req.Title,
-		FetchedContent: content,
-		Summary:        summary,
-		KeyPoints:      keyPoints,
-		Lang:           req.Lang,
-	}
-	if err := p.st.SaveArticle(userID, article); err != nil {
-		log.Printf("preloader: save article %d failed: %v", req.HNID, err)
+		if errors.Is(err, fetcher.ErrNotStory) {
+			log.Printf("preloader: hn_id=%d is not a story", req.HNID)
+			p.refund(t)
+			return
+		}
+		log.Printf("preloader: canonical lookup failed for hn_id=%d: %v", req.HNID, err)
 	} else {
-		log.Printf("preloader: article %d preloaded successfully", req.HNID)
+		canonical = true
+		// Empty URL is meaningful for text posts; never fall back to the
+		// client-supplied URL for a globally cached entry.
+		req.URL = story.URL
+		if story.Title != "" {
+			req.Title = story.Title
+		}
+	}
+
+	key := strconv.FormatInt(req.HNID, 10) + "|" + req.Lang
+	val, err := p.flights.Do(p.ctx, key, func() (any, error) {
+		// Double-check inside the flight leader.
+		if cached, err := p.st.GetGlobalArticle(req.HNID, req.Lang); err == nil && cached != nil && cached.Summary != "" {
+			return cached, nil
+		}
+
+		if req.URL != "" {
+			if _, err := fetcher.ValidateURL(p.ctx, req.URL); err != nil {
+				return nil, err
+			}
+			content, err := p.fetcher.FetchArticle(p.ctx, req.URL)
+			if err != nil {
+				if fetcher.IsBlockedError(err) {
+					return nil, err
+				}
+				log.Printf("preloader: fetch article hn_id=%d failed: %v", req.HNID, err)
+			}
+			return p.generate(req, content, canonical)
+		}
+		return p.generate(req, "", canonical)
+	})
+	if err != nil {
+		log.Printf("preloader: summarize hn_id=%d failed: %v", req.HNID, err)
+		p.refund(t)
+		return
+	}
+
+	article, ok := val.(*storage.Article)
+	if !ok || article == nil {
+		p.refund(t)
+		return
+	}
+	p.saveUser(t.userID, article)
+}
+
+func (p *Preloader) generate(req ArticleRequest, content string, canonical bool) (any, error) {
+	summary, keyPoints, err := p.summarizer.SummarizeArticle(p.ctx, req.Title, content, req.Lang)
+	if err != nil {
+		return nil, err
+	}
+	article := &storage.Article{
+		HNID:      req.HNID,
+		URL:       req.URL,
+		Title:     req.Title,
+		Summary:   summary,
+		KeyPoints: keyPoints,
+		Lang:      req.Lang,
+	}
+	if canonical {
+		if err := p.st.SaveGlobalArticle(article); err != nil {
+			log.Printf("preloader: save global article hn_id=%d failed: %v", req.HNID, err)
+		}
+	}
+	return article, nil
+}
+
+func (p *Preloader) saveUser(userID string, a *storage.Article) {
+	if err := p.st.SaveArticle(userID, a); err != nil {
+		log.Printf("preloader: save user article hn_id=%d failed: %v", a.HNID, err)
 	}
 }
 
-func (p *Preloader) clearInflight(hnID int64) {
-	p.inflightMu.Lock()
-	delete(p.inflight, hnID)
-	p.inflightMu.Unlock()
+func (p *Preloader) refund(t *task) {
+	if !t.reserved || t.userID == "" {
+		return
+	}
+	if err := p.st.ReleaseQuota(t.userID, 1); err != nil {
+		log.Printf("preloader: refund quota user=%s failed: %v", t.userID, err)
+	}
 }
 
-// IsCached returns the subset of hnIDs that already have a cached summary for the given language.
-func (p *Preloader) IsCached(hnIDs []int64, lang string) ([]int64, error) {
-	return p.IsCachedForUser("", hnIDs, lang)
+// IsCached returns the subset of hnIDs already cached for the local user.
+func (p *Preloader) IsCached(ctx context.Context, hnIDs []int64, lang string) ([]int64, error) {
+	return p.IsCachedForUser(ctx, "", hnIDs, lang)
 }
 
-// IsCachedForUser is the cloud-mode variant of IsCached.
-func (p *Preloader) IsCachedForUser(userID string, hnIDs []int64, lang string) ([]int64, error) {
+// IsCachedForUser checks the user cache and then the shared global cache.
+func (p *Preloader) IsCachedForUser(ctx context.Context, userID string, hnIDs []int64, lang string) ([]int64, error) {
 	if len(hnIDs) == 0 {
 		return []int64{}, nil
 	}
@@ -131,11 +283,45 @@ func (p *Preloader) IsCachedForUser(userID string, hnIDs []int64, lang string) (
 	if err != nil {
 		return nil, err
 	}
+	seen := make(map[int64]bool, len(hnIDs))
 	var ready []int64
 	for _, a := range articles {
 		if a.Lang == lang && a.Summary != "" {
 			ready = append(ready, a.HNID)
+			seen[a.HNID] = true
+		}
+	}
+	for _, id := range hnIDs {
+		if seen[id] {
+			continue
+		}
+		if g, err := p.st.GetGlobalArticle(id, lang); err == nil && g != nil && g.Summary != "" {
+			ready = append(ready, id)
 		}
 	}
 	return ready, nil
+}
+
+// Close stops accepting tasks, cancels in-flight work, and waits for workers.
+func (p *Preloader) Close(ctx context.Context) {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return
+	}
+	p.closed = true
+	close(p.queue)
+	p.mu.Unlock()
+
+	p.cancel()
+
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }

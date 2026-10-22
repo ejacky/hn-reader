@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
@@ -14,12 +16,17 @@ type PostgresRepo struct {
 	db *sql.DB
 }
 
-// NewPostgres opens a connection and runs migrations.
+// NewPostgres opens a connection, configures the pool, and runs migrations.
 func NewPostgres(databaseURL string) (*PostgresRepo, error) {
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
+
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
@@ -34,7 +41,7 @@ func (r *PostgresRepo) migrate() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS users (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-		email TEXT,
+		email TEXT NOT NULL DEFAULT '',
 		api_key TEXT UNIQUE NOT NULL,
 		plan TEXT NOT NULL DEFAULT 'free',
 		quota_used INTEGER NOT NULL DEFAULT 0,
@@ -86,20 +93,51 @@ func (r *PostgresRepo) migrate() error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_signals_user_created ON user_signals(user_id, created_at DESC);
+
+	CREATE TABLE IF NOT EXISTS global_articles (
+		hn_id BIGINT NOT NULL,
+		lang TEXT NOT NULL,
+		url TEXT NOT NULL,
+		title TEXT NOT NULL,
+		summary TEXT NOT NULL,
+		key_points JSONB NOT NULL DEFAULT '[]',
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (hn_id, lang)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_global_articles_updated ON global_articles(updated_at);
 	`
-	_, err := r.db.Exec(schema)
-	return err
+	if _, err := r.db.Exec(schema); err != nil {
+		return err
+	}
+
+	// Idempotent fix for databases created before the anonymous-auth fix:
+	// users.email was nullable and scanning NULL into a Go string failed.
+	if _, err := r.db.Exec(`UPDATE users SET email = '' WHERE email IS NULL`); err != nil {
+		return err
+	}
+	if _, err := r.db.Exec(`ALTER TABLE users ALTER COLUMN email SET DEFAULT ''`); err != nil {
+		return err
+	}
+	if _, err := r.db.Exec(`ALTER TABLE users ALTER COLUMN email SET NOT NULL`); err != nil {
+		return err
+	}
+	return nil
 }
 
 // --- User ---
 
-func (r *PostgresRepo) CreateAnonymousUser() (*User, error) {
+func (r *PostgresRepo) CreateAnonymousUser(quotaLimit int) (*User, error) {
+	if quotaLimit <= 0 {
+		quotaLimit = 50
+	}
 	apiKey := uuid.New().String()
 	row := r.db.QueryRow(`
 		INSERT INTO users (api_key, plan, quota_limit)
-		VALUES ($1, 'free', 50)
-		RETURNING id, email, api_key, plan, quota_used, quota_limit, quota_reset_at, created_at
-	`, apiKey)
+		VALUES ($1, 'free', $2)
+		RETURNING id, COALESCE(email, ''), api_key, plan, quota_used, quota_limit, quota_reset_at, created_at
+	`, apiKey, quotaLimit)
 	u := &User{}
 	err := row.Scan(&u.ID, &u.Email, &u.APIKey, &u.Plan, &u.QuotaUsed, &u.QuotaLimit, &u.QuotaResetAt, &u.CreatedAt)
 	return u, err
@@ -107,7 +145,7 @@ func (r *PostgresRepo) CreateAnonymousUser() (*User, error) {
 
 func (r *PostgresRepo) GetUserByAPIKey(apiKey string) (*User, error) {
 	row := r.db.QueryRow(`
-		SELECT id, email, api_key, plan, quota_used, quota_limit, quota_reset_at, created_at
+		SELECT id, COALESCE(email, ''), api_key, plan, quota_used, quota_limit, quota_reset_at, created_at
 		FROM users WHERE api_key = $1
 	`, apiKey)
 	u := &User{}
@@ -130,7 +168,7 @@ func (r *PostgresRepo) GetUserQuota(userID string) (*User, error) {
 
 func (r *PostgresRepo) getUserByID(userID string) (*User, error) {
 	row := r.db.QueryRow(`
-		SELECT id, email, api_key, plan, quota_used, quota_limit, quota_reset_at, created_at
+		SELECT id, COALESCE(email, ''), api_key, plan, quota_used, quota_limit, quota_reset_at, created_at
 		FROM users WHERE id = $1
 	`, userID)
 	u := &User{}
@@ -144,6 +182,131 @@ func (r *PostgresRepo) getUserByID(userID string) (*User, error) {
 func (r *PostgresRepo) IncrementQuotaUsed(userID string, n int) error {
 	_, err := r.db.Exec(`UPDATE users SET quota_used = quota_used + $2 WHERE id = $1`, userID, n)
 	return err
+}
+
+// ReserveQuota atomically adds n to quota_used only if it fits under the limit.
+func (r *PostgresRepo) ReserveQuota(userID string, n int) (used, limit int, ok bool, err error) {
+	if n <= 0 {
+		u, err := r.GetUserQuota(userID)
+		if err != nil || u == nil {
+			return 0, 0, false, err
+		}
+		return u.QuotaUsed, u.QuotaLimit, true, nil
+	}
+
+	u, err := r.GetUserQuota(userID)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if u == nil {
+		return 0, 0, false, fmt.Errorf("user not found")
+	}
+	if u.QuotaUsed+n > u.QuotaLimit {
+		return u.QuotaUsed, u.QuotaLimit, false, nil
+	}
+
+	err = r.db.QueryRow(`
+		UPDATE users SET quota_used = quota_used + $2
+		WHERE id = $1 AND quota_used + $2 <= quota_limit
+		RETURNING quota_used, quota_limit
+	`, userID, n).Scan(&used, &limit)
+	if err == sql.ErrNoRows {
+		// Lost a race with another reservation; report the current state.
+		return u.QuotaUsed, u.QuotaLimit, false, nil
+	}
+	return used, limit, err == nil, err
+}
+
+// ReleaseQuota refunds n reservations, never going below zero.
+func (r *PostgresRepo) ReleaseQuota(userID string, n int) error {
+	if n <= 0 {
+		return nil
+	}
+	_, err := r.db.Exec(`
+		UPDATE users SET quota_used = GREATEST(quota_used - $2, 0) WHERE id = $1
+	`, userID, n)
+	return err
+}
+
+func (r *PostgresRepo) DeleteUser(userID string) error {
+	_, err := r.db.Exec(`DELETE FROM users WHERE id = $1`, userID)
+	return err
+}
+
+func (r *PostgresRepo) GetUserData(userID string) (*UserData, error) {
+	user, err := r.getUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, nil
+	}
+	data := &UserData{User: user, Articles: []Article{}, Comments: []Comment{}, Signals: []UserSignal{}}
+
+	rows, err := r.db.Query(`
+		SELECT hn_id, url, title, summary, key_points, lang, created_at
+		FROM articles WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10000
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var a Article
+		var kp []byte
+		if err := rows.Scan(&a.HNID, &a.URL, &a.Title, &a.Summary, &kp, &a.Lang, &a.CreatedAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		_ = json.Unmarshal(kp, &a.KeyPoints)
+		data.Articles = append(data.Articles, a)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	rows, err = r.db.Query(`
+		SELECT hn_id, article_id, author, summary, lang, created_at
+		FROM comments WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10000
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var c Comment
+		if err := rows.Scan(&c.HNID, &c.ArticleID, &c.Author, &c.Summary, &c.Lang, &c.CreatedAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		data.Comments = append(data.Comments, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	rows, err = r.db.Query(`
+		SELECT target_type, target_id, signal_type, strength, context, created_at
+		FROM user_signals WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10000
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var s UserSignal
+		var ctx []byte
+		if err := rows.Scan(&s.TargetType, &s.TargetID, &s.SignalType, &s.Strength, &ctx, &s.CreatedAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		_ = json.Unmarshal(ctx, &s.Context)
+		data.Signals = append(data.Signals, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // --- Article ---
@@ -164,7 +327,7 @@ func (r *PostgresRepo) GetArticle(userID string, hnID int64, lang string) (*Arti
 		return nil, err
 	}
 	a.Cached = true
-	json.Unmarshal(kpJSON, &a.KeyPoints)
+	_ = json.Unmarshal(kpJSON, &a.KeyPoints)
 	return a, nil
 }
 
@@ -175,7 +338,7 @@ func (r *PostgresRepo) SaveArticle(userID string, a *Article) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (user_id, hn_id, lang)
 		DO UPDATE SET url = EXCLUDED.url, title = EXCLUDED.title, summary = EXCLUDED.summary, key_points = EXCLUDED.key_points
-	`, userID, a.HNID, a.URL, a.Title, a.Summary, kpJSON, a.Lang)
+	`, userID, a.HNID, a.URL, a.Title, a.Summary, string(kpJSON), a.Lang)
 	return err
 }
 
@@ -183,7 +346,6 @@ func (r *PostgresRepo) GetArticlesByIDs(userID string, hnIDs []int64) ([]Article
 	if len(hnIDs) == 0 {
 		return nil, nil
 	}
-	// Build IN clause; Postgres params are positional ($1, $2, ...)
 	query := `SELECT hn_id, url, title, summary, key_points, lang
 		FROM articles WHERE user_id = $1 AND hn_id IN (`
 	args := make([]interface{}, len(hnIDs)+1)
@@ -210,10 +372,43 @@ func (r *PostgresRepo) GetArticlesByIDs(userID string, hnIDs []int64) ([]Article
 		if err := rows.Scan(&a.HNID, &a.URL, &a.Title, &a.Summary, &kpJSON, &a.Lang); err != nil {
 			return nil, err
 		}
-		json.Unmarshal(kpJSON, &a.KeyPoints)
+		_ = json.Unmarshal(kpJSON, &a.KeyPoints)
 		articles = append(articles, a)
 	}
 	return articles, rows.Err()
+}
+
+// --- Global summary cache ---
+
+func (r *PostgresRepo) GetGlobalArticle(hnID int64, lang string) (*Article, error) {
+	row := r.db.QueryRow(`
+		SELECT hn_id, url, title, summary, key_points, lang, updated_at
+		FROM global_articles WHERE hn_id = $1 AND lang = $2
+	`, hnID, lang)
+	a := &Article{}
+	var kp []byte
+	err := row.Scan(&a.HNID, &a.URL, &a.Title, &a.Summary, &kp, &a.Lang, &a.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	a.Cached = true
+	_ = json.Unmarshal(kp, &a.KeyPoints)
+	return a, nil
+}
+
+func (r *PostgresRepo) SaveGlobalArticle(a *Article) error {
+	kpJSON, _ := json.Marshal(a.KeyPoints)
+	_, err := r.db.Exec(`
+		INSERT INTO global_articles (hn_id, lang, url, title, summary, key_points)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (hn_id, lang)
+		DO UPDATE SET url = EXCLUDED.url, title = EXCLUDED.title, summary = EXCLUDED.summary,
+			key_points = EXCLUDED.key_points, updated_at = NOW()
+	`, a.HNID, a.Lang, a.URL, a.Title, a.Summary, string(kpJSON))
+	return err
 }
 
 // --- Comment ---
@@ -253,7 +448,7 @@ func (r *PostgresRepo) SaveSignal(userID string, s *UserSignal) error {
 	_, err := r.db.Exec(`
 		INSERT INTO user_signals (user_id, target_type, target_id, signal_type, strength, context, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, userID, s.TargetType, s.TargetID, s.SignalType, s.Strength, ctxJSON, s.CreatedAt)
+	`, userID, s.TargetType, s.TargetID, s.SignalType, s.Strength, string(ctxJSON), s.CreatedAt)
 	return err
 }
 
@@ -269,10 +464,7 @@ func (r *PostgresRepo) GetSignalStats(userID string) (*SignalStats, error) {
 	}
 	defer rows.Close()
 
-	stats := &SignalStats{
-		TotalSignals: 0,
-		ByType:       make(map[string]int),
-	}
+	stats := &SignalStats{ByType: make(map[string]int)}
 	for rows.Next() {
 		var t string
 		var c int
@@ -306,16 +498,18 @@ func (r *PostgresRepo) GetRecentSignals(userID string, limit int) ([]UserSignal,
 		if err != nil {
 			continue
 		}
-		json.Unmarshal(ctxJSON, &s.Context)
+		_ = json.Unmarshal(ctxJSON, &s.Context)
 		signals = append(signals, s)
 	}
 	return signals, nil
 }
 
-// Close closes the database connection.
+func (r *PostgresRepo) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
+}
+
 func (r *PostgresRepo) Close() error {
 	return r.db.Close()
 }
 
-// Compile-time interface check.
 var _ Repository = (*PostgresRepo)(nil)

@@ -2,7 +2,7 @@
 
 通过浏览器扩展 + 后端服务，在 Hacker News 页面注入 AI 总结按钮，并基于用户的隐式行为建立兴趣模型，辅助你判断哪些内容值得阅读。
 
-**v1.1 更新**：扩展现已支持「云服务」模式，安装后即可使用，无需下载本地服务端。注重隐私的用户仍可切换为「本地服务」模式。
+**v1.2 更新**：云服务完成上线加固（匿名限流、SSRF 防护、LLM 日预算/并发、共享摘要缓存、预加载配额、数据导出/删除）。云服务开箱即用，注重隐私的用户仍可切换为「本地服务」模式。
 
 ## 核心功能
 
@@ -26,21 +26,17 @@ hn-reader/
 │   ├── welcome.html / welcome.js
 │   ├── config.js           # 全局配置模块
 │   └── icons/
-├── server/             # Go 本地后端服务
-│   ├── main.go
+├── server/             # Go 后端（local + cloud 共用）
+│   ├── cmd/hn-reader/          # 本地服务入口
+│   ├── cmd/hn-reader-cloud/    # 云服务入口（必须 -tags cloud）
 │   └── internal/
-│       ├── api/        # HTTP API
+│       ├── api/        # HTTP API + 云鉴权/配额
 │       ├── fetcher/    # 网页内容抓取
 │       ├── summarizer/ # LLM 总结
-│       ├── storage/    # SQLite 数据层
+│       ├── storage/    # SQLite / PostgreSQL 数据层
 │       ├── preloader/  # 预加载
 │       └── config/     # 配置管理
-└── server/cloud/       # Go 云后端服务（开发中）
-    ├── cmd/server/
-    └── internal/
-        ├── api/        # HTTP API + 认证/配额
-        ├── storage/    # PostgreSQL 多租户数据层
-        └── config/     # 云原生配置
+└── deploy/h43/         # 生产部署（docker-compose / Caddy / 备份）
 ```
 
 ## 快速开始
@@ -52,7 +48,7 @@ hn-reader/
 3. 访问 [news.ycombinator.com](https://news.ycombinator.com)，点击文章旁的 `[summary]` 即可使用
 4. 每月免费额度用完后，扩展会引导你升级到 Pro
 
-> 当前云服务域名：`https://api.hn-reader.app`（部署前可修改 `extension/config.js` 中的 `CLOUD_BASE_URL`）
+> 当前云服务域名：`https://hn-reader.whoareyou.ren`（部署前可修改 `extension/config.js` 中的 `CLOUD_BASE_URL`）
 
 ### 方式二：本地服务
 
@@ -101,6 +97,8 @@ go build -o hn-reader.exe .
 | `LLM_MODEL` | `gpt-4o-mini` | 模型名称 |
 | `DB_PATH` | `./hn-reader.db` | SQLite 数据库路径 |
 
+云服务额外配置（限流、LLM 日预算/并发、预加载队列、可信代理等）见 [deploy/h43/.env.example](deploy/h43/.env.example)。
+
 ## 开发
 
 ```bash
@@ -116,18 +114,17 @@ make clean
 
 ## Cloud Server 本地开发
 
+云服务代码在 `server/cmd/hn-reader-cloud`，**必须带 `-tags cloud` 构建**；不带 tag 会因构建约束直接失败，避免误部署出无鉴权服务。
+
 ```bash
-cd server/cloud
+cd server
 
-# 1. 启动 PostgreSQL（需要 Docker）
-cp .env.example .env
-# 编辑 .env 填入 LLM_API_KEY 和 DATABASE_URL
-docker-compose up -d db
-
-# 2. 运行 migrations（首次）并启动服务
+# 1. 准备 PostgreSQL，并设置环境变量
 export DATABASE_URL=postgres://hn_reader:hn_reader@localhost:5432/hn_reader?sslmode=disable
 export LLM_API_KEY=your-api-key
-./go.exe build -o cloud-server.exe ./cmd/server
+
+# 2. 启动云服务（启动时自动建表）
+go build -tags cloud -o cloud-server.exe ./cmd/hn-reader-cloud
 ./cloud-server.exe
 ```
 
@@ -139,12 +136,9 @@ CLOUD_BASE_URL: 'http://localhost:8080'
 
 ## Cloud Server 部署
 
-推荐使用 Fly.io / Railway / Render：
+当前生产部署：`https://hn-reader.whoareyou.ren`（h43，PostgreSQL + Go + Caddy）。
 
-1. 设置环境变量：`DATABASE_URL`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `PORT`
-2. 部署 Docker 镜像
-3. 将 `extension/config.js` 中的 `CLOUD_BASE_URL` 改为生产域名
-4. 发布扩展到 Chrome Web Store
+完整的容器、Caddy、网络、备份与回滚说明见 [deploy/h43/README.md](deploy/h43/README.md)。
 
 ## 技术栈
 
@@ -161,7 +155,10 @@ CLOUD_BASE_URL: 'http://localhost:8080'
 - API Key 由用户自行配置，不经过第三方服务
 
 ### 云服务模式
-- 阅读信号、摘要记录按用户 ID 隔离存储在 PostgreSQL
-- 原始网页全文不长期存储
-- 数据不出售、不用于模型训练
-- 支持导出数据和删除账户
+- 匿名 token 标识账户，不收集姓名/邮箱/密码
+- 阅读信号、按用户隔离的摘要记录和配额存储在 PostgreSQL
+- 原始网页全文不长期存储；生成的摘要在共享缓存中按 `(hn_id, lang)` 保存，不含用户标识
+- 文章/评论文本仅发送给配置的 LLM 提供商用于生成摘要
+- 数据不出售、不用于广告或训练我们自己的模型
+- 弹窗内支持导出数据和删除云端账户；删除后用户数据级联清除，共享公开摘要缓存保留
+- 详细说明见 [docs/PRIVACY.md](docs/PRIVACY.md)

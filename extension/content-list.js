@@ -15,6 +15,7 @@
         if (!response || !response.ok) {
           const err = new Error(response?.error || 'Unknown error');
           err.status = response?.status || 0;
+          err.code = response?.code || '';
           reject(err);
           return;
         }
@@ -75,7 +76,7 @@
     }
   }
 
-  function showQuotaExceededTip(targetBtn) {
+  function showNoticeTip(targetBtn, title, message) {
     // 移除已存在的提示
     const existing = document.getElementById('hn-reader-quota-tip');
     if (existing) existing.remove();
@@ -98,8 +99,8 @@
       color: #000;
     `;
     tip.innerHTML = `
-      <div style="font-weight:bold;color:#ff6600;margin-bottom:6px;">本月免费额度已用完</div>
-      <div style="margin-bottom:10px;color:#666;">升级到 Pro 可继续使用 AI 摘要和高级匹配功能。</div>
+      <div style="font-weight:bold;color:#ff6600;margin-bottom:6px;">${title}</div>
+      <div style="margin-bottom:10px;color:#666;">${message}</div>
       <button id="hn-reader-quota-close" style="background:#ff6600;color:#fff;border:none;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:11px;">知道了</button>
     `;
 
@@ -113,6 +114,14 @@
     setTimeout(() => {
       if (tip.parentNode) tip.remove();
     }, 8000);
+  }
+
+  function showQuotaExceededTip(targetBtn) {
+    showNoticeTip(
+      targetBtn,
+      '本月免费额度已用完',
+      '下月 1 日自动重置；已缓存的摘要仍可查看。'
+    );
   }
 
   function setSummaryBtnState(hnId, active) {
@@ -322,11 +331,34 @@
           await sendSignal('article', hnId, 'summary_viewed', 1, { title });
         } catch (err) {
           console.error('[HN Reader] summarize error:', err);
-          if (err.status === 429) {
+          if (err.code === 'quota_exceeded' || (err.status === 429 && !err.code)) {
             btn.textContent = ' [额度已用完]';
             btn.style.color = '#e00';
-            btn.title = '点击打开扩展，升级到 Pro 继续使用';
+            btn.title = '点击查看额度说明';
             btn.dataset.hnReaderQuotaExceeded = 'true';
+          } else if (err.code === 'rate_limited') {
+            btn.textContent = ' [请稍后]';
+            btn.style.color = '#e00';
+            btn.title = '请求过于频繁，请稍后重试';
+            showNoticeTip(btn, '请求过于频繁', '请等待几秒后再试。');
+            setTimeout(() => {
+              if (btn.textContent === ' [请稍后]') {
+                btn.textContent = ' [summary]';
+                btn.style.color = '#ff6600';
+                btn.title = '';
+              }
+            }, 5000);
+          } else if (err.code === 'service_busy' || err.code === 'llm_unavailable') {
+            btn.textContent = ' [服务繁忙]';
+            btn.style.color = '#e00';
+            btn.title = '服务繁忙，请稍后重试';
+            setTimeout(() => {
+              if (btn.textContent === ' [服务繁忙]') {
+                btn.textContent = ' [summary]';
+                btn.style.color = '#ff6600';
+                btn.title = '';
+              }
+            }, 5000);
           } else {
             btn.textContent = ' [failed]';
             btn.style.color = '#e00';

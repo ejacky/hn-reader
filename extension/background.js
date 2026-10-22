@@ -1,6 +1,7 @@
 importScripts('config.js');
 
 const MIN_SERVER_VERSION = '1.0.0';
+const AUTH_FAILED_KEY = 'hn_reader_cloud_auto_auth_failed';
 
 async function createAnonymousAccount() {
   try {
@@ -20,31 +21,33 @@ async function createAnonymousAccount() {
       mode: 'cloud',
       cloudToken: data.token
     });
-    await chrome.storage.local.remove(['hn_reader_cloud_auto_auth_failed']);
+    await chrome.storage.local.remove([AUTH_FAILED_KEY]);
     console.log('[HN Reader] anonymous account created');
     return true;
   } catch (err) {
     console.error('[HN Reader] create anonymous account failed:', err);
-    await chrome.storage.local.set({ hn_reader_cloud_auto_auth_failed: true });
+    await chrome.storage.local.set({ [AUTH_FAILED_KEY]: Date.now() });
     return false;
   }
 }
 
-async function ensureCloudToken() {
+async function ensureCloudToken(force = false) {
   const cfg = await getReaderConfig();
   if (cfg.mode !== 'cloud') return true;
-  if (cfg.token) return true;
+  if (cfg.token && !force) return true;
 
-  // 已有失败标记，避免频繁重试；popup 打开时可手动触发重试
-  const result = await chrome.storage.local.get(['hn_reader_cloud_auto_auth_failed']);
-  if (result.hn_reader_cloud_auto_auth_failed) {
-    return false;
+  // 失败后冷却 60 秒再自动重试；手动重试（force）立即执行。
+  const result = await chrome.storage.local.get([AUTH_FAILED_KEY]);
+  const failedAt = result[AUTH_FAILED_KEY];
+  if (!force && failedAt) {
+    const ts = typeof failedAt === 'number' ? failedAt : 0;
+    if (Date.now() - ts < 60 * 1000) return false;
   }
 
   return await createAnonymousAccount();
 }
 
-async function apiRequest(method, path, body = null) {
+async function apiRequest(method, path, body = null, retried = false) {
   const tokenReady = await ensureCloudToken();
   if (!tokenReady) {
     throw new Error('Cloud account not ready. Please check your network and try again.');
@@ -59,11 +62,29 @@ async function apiRequest(method, path, body = null) {
     options.body = JSON.stringify(body);
   }
   const resp = await fetch(url, options);
+  // Token 失效（服务端重建/换环境）时清掉旧 token，重新建号并重试一次。
+  if (resp.status === 401 && !retried && cfg.mode === 'cloud') {
+    await chrome.storage.local.remove([CONFIG.KEYS.CLOUD_TOKEN]);
+    if (await ensureCloudToken(true)) {
+      return apiRequest(method, path, body, true);
+    }
+  }
   if (!resp.ok) {
     const text = await resp.text();
+    let code = '';
+    try {
+      const parsed = JSON.parse(text);
+      code = parsed.error || '';
+    } catch (_) {
+      // Non-JSON error body; keep the raw text for logs.
+    }
     const err = new Error(`HTTP ${resp.status}: ${text}`);
     err.status = resp.status;
+    err.code = code;
     throw err;
+  }
+  if (resp.status === 204) {
+    return {};
   }
   return resp.json();
 }
@@ -130,7 +151,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ ok: true, data: await getReaderConfig() });
           break;
         case 'ensureCloudToken':
-          const ok = await ensureCloudToken();
+          const ok = await ensureCloudToken(request.payload?.force === true);
           sendResponse({ ok: true, data: { success: ok } });
           break;
         case 'apiRequest':
@@ -144,7 +165,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ ok: false, error: 'Unknown action' });
       }
     } catch (err) {
-      sendResponse({ ok: false, error: err.message, status: err.status || 0 });
+      sendResponse({ ok: false, error: err.message, status: err.status || 0, code: err.code || '' });
     }
   })();
   return true;

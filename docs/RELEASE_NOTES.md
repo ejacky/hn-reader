@@ -1,71 +1,56 @@
+# HN Reader v1.2.0 — Cloud Hardening & Launch Readiness
+
 ## Release Title
 
-HN Reader v1.1.0 — Cloud Mode & Dual Backend Support
-
----
+HN Reader v1.2.0 — Cloud Hardening, Rate Limits, and Data Controls
 
 ## Release Notes
 
-### What's new in v1.1.0
+### Cloud service
 
-- **☁️ Zero-Config Cloud Mode**: Install the extension and start using it immediately. HN Reader automatically creates an anonymous cloud account for you.
-- **💳 Pay-Only-When-Needed**: Basic features are free within the monthly quota. Upgrade prompts only appear when you reach the limit.
-- **🖥️ Local Mode Still Supported**: Privacy-conscious users can switch to local mode from advanced settings; it's kept low-profile so it doesn't burden regular users.
-- **🔐 Authentication & Quotas**: Cloud backend supports anonymous sign-up, API key authentication, and monthly usage quotas.
-- **🚀 Onboarding**: New users see a streamlined welcome page and in-page tooltip on first visit to Hacker News.
-- **🐳 Cloud Server Deployment**: Added `server/cloud/` with PostgreSQL-backed multi-tenant backend and Docker support.
+- **SSRF protection**: article URLs are validated before fetching; private, loopback, link-local, CGNAT, and cloud-metadata addresses are rejected, including redirects and DNS rebinding.
+- **Rate limits**: anonymous signup is limited per IP (5/hour, 20/day); API, summary, preload, signal, and account operations have per-user limits.
+- **Cost guards**: global daily LLM budget (default 2000 calls), global concurrency limit (default 4), request timeout, and `max_tokens` cap.
+- **Shared summary cache**: article summaries are cached by `(hn_id, lang)` and shared across anonymous users, so the same article is summarized once. Cache hits do not consume quota.
+- **Bounded preload queue**: fixed workers, queue size, and per-user pending limit; preload reserves quota and refunds it on cache hits or failures.
+- **Account controls**: export your data as JSON and delete the cloud account from the extension popup.
+- **Server baseline**: HTTP timeouts, graceful shutdown, request-body limit, DB-backed `/health`, connection pool settings, and trusted-proxy handling for Caddy.
+- **Correctness fixes**: anonymous signup no longer fails on `NULL` email; the cloud binary now requires `-tags cloud`; stale `X-Forwarded-For` cannot bypass rate limits.
+- **Version**: cloud `/health` reports `1.2.0`.
 
-### Extension Installation
+### Extension
 
-1. Install from Chrome Web Store or load `./extension` in developer mode.
-2. Choose **Cloud Mode** or **Local Mode** on first run.
-3. Visit [news.ycombinator.com](https://news.ycombinator.com) and click `[summary]` next to any article.
+- Points at `https://hn-reader.whoareyou.ren`.
+- Distinguishes quota, rate-limit, and service-busy errors.
+- Removes the Pro/upgrade dead link for the free launch.
+- Adds “导出我的数据” and “删除云端数据”.
+- Fixes the permanent “cloud account not ready” state after a failed first signup; 401 responses now rebuild the anonymous token once.
+- Version `1.2.0`.
 
-### Cloud Server Deployment
+### Cloud deployment
 
 ```bash
-cd server/cloud
-cp .env.example .env
-# edit .env with DATABASE_URL and LLM_API_KEY
-docker-compose up -d
+# on the build machine
+cd server
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags cloud -trimpath \
+  -ldflags "-s -w" -o hn-reader-cloud ./cmd/hn-reader-cloud
+
+# on h43 (see deploy/h43/README.md for the full procedure)
+cd /root/hn-reader
+docker build -t hn-reader-cloud:1.2.0 .
+docker compose up -d server
 ```
 
----
+### Local mode
 
-### What's in this release
+Local mode remains available for privacy-conscious users. The Windows installer and local server are unchanged; the extension can switch modes from the popup.
 
-This is the **Windows installer** for HN Reader Server v1.0.0.
+### Upgrade notes
 
-The server is a lightweight local service that powers the [HN Reader Chrome Extension](https://chrome.google.com/webstore/detail/hn-reader-ai-reading-assistant/YOUR_EXTENSION_ID). It handles all AI processing — article summaries, comment summaries, and personalized recommendations — using your own LLM API key.
+- The database migration is additive: a `global_articles` table plus an idempotent `users.email` fix. The previous `1.1.1` image can be used for rollback.
+- Keep the temporary Caddy IP allowlist until the P0 acceptance checks pass, then remove it and reload Caddy.
+- Existing anonymous tokens remain valid. Tokens invalidated by a database reset are recreated by the extension on the next 401.
 
-### System Requirements
+### Privacy
 
-- Windows 10 or later (64-bit)
-- Administrator privileges (required to install the Windows service)
-
-### Installation
-
-1. Download `HNReader-Setup-1.0.0.exe` below.
-2. Double-click to run the installer.
-3. Enter your LLM API key when prompted (e.g., DeepSeek, OpenAI, or compatible).
-4. The installer will automatically register and start the HN Reader service.
-
-The service runs in the background and listens on `http://localhost:8080` by default.
-
-### What gets installed
-
-- `hn-reader.exe` — the server binary (registered as a Windows service)
-- `.env` — your configuration (API key, model, port)
-- An uninstaller entry in "Add or Remove Programs"
-
-### Upgrading
-
-If you have a previous version installed, simply run the new installer. It will automatically stop and replace the old service while preserving your existing `.env` configuration.
-
-### Uninstallation
-
-Run `uninstall.exe` from the installation directory, or remove "HN Reader Server" from Windows "Add or Remove Programs".
-
-### Source Code
-
-See the full source and build instructions in the [main repository](https://github.com/YOUR_USERNAME/hn-reader).
+Cloud mode stores anonymous reading signals and generated summaries to provide recommendations and enforce quota. Article/comment text is sent to the configured LLM provider only to generate the requested summary. See [PRIVACY.md](PRIVACY.md).

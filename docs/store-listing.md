@@ -1,8 +1,7 @@
 # Store Listing Materials
 
-> 本文件存放 Chrome Web Store / Edge Add-ons 上架时需要填写的文字内容。  
-> 截图素材见 `../assets/` 目录下的 `screen1.png`、`screen2.png`、`screen3.png`。  
-> 隐私政策见 `PRIVACY.md`。
+> Chrome Web Store / Edge Add-ons submission text. Keep in sync with `manifest.json` and `PRIVACY.md`.
+> Screenshots: `../assets/screen1.png`, `screen2.png`, `screen3.png` (replace with current UI).
 
 ---
 
@@ -11,53 +10,50 @@
 | 字段 | 内容 |
 |------|------|
 | **名称** | HN Reader - AI Reading Assistant |
-| **版本** | 1.0.1（与 `manifest.json` 保持一致） |
+| **版本** | 1.2.0（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
-| **语言** | English（默认） |
+| **默认语言** | English |
 
 ---
 
-## 商店描述（Description）
+## 商店描述
 
-### 简短描述（Short Description）
+### Short description
 
-Read Hacker News faster with AI summaries and personalized highlights. Your data stays local.
+AI summaries and personalized highlights for Hacker News. Free monthly quota, no setup required.
 
-### 详细描述（Detailed Description）
+### Detailed description
 
-Stop wasting time on Hacker News articles that aren't for you.
+Stop wasting time on Hacker News posts that aren't for you.
 
-HN Reader is an AI-powered reading assistant that helps you read Hacker News faster and smarter — without ever leaving the page.
+HN Reader is an AI reading assistant that adds one-click summaries and personalized highlights directly to Hacker News.
 
 **What you get:**
 
-⏱️ **Save Time**  
-Get instant AI summaries for articles and comments with one click. Know if a post is worth your time before you open it.
-
-🎯 **Discover What Matters**  
-The extension learns from your reading habits and automatically highlights articles matched to your interests. No more scrolling through noise.
-
-🔒 **Complete Privacy**  
-Your data stays on your machine. The extension connects to your own self-hosted server using your own API key. Nothing is sent to us or any third party.
+- **Instant summaries** — click `[summary]` next to an article or comment and get a concise summary with key points.
+- **Personalized highlights** — the extension learns from your reading signals and marks posts you are likely to care about.
+- **Zero setup by default** — Cloud mode creates an anonymous account automatically. No server, API key, or configuration required.
+- **Local option** — privacy-conscious users can switch to Local mode and run the open-source server themselves.
+- **Free monthly quota** — 50 summaries per month on the free plan. Cached summaries remain readable when the quota is used up.
 
 **How it works:**
-1. Install the extension and download the free HN Reader server (runs locally on your computer).
-2. Browse Hacker News normally — you'll see `[summary]` buttons next to posts and comments.
-3. Click to get instant AI insights. Articles you'll love are highlighted automatically.
 
-**Permissions:**
-- **Storage** — remembers your server address and language preference.
-- **news.ycombinator.com** — injects summary buttons on Hacker News only.
+1. Install the extension.
+2. Open [news.ycombinator.com](https://news.ycombinator.com). Article and comment summaries appear as `[summary]` / `[summarize]` links.
+3. Click a link to get an AI summary; articles you are likely to enjoy are highlighted.
+4. Open the popup to see quota, stats, recommendations, and data export/deletion controls.
 
-⚠️ **Requires a self-hosted local server.** Download it from the GitHub releases page.
+**Privacy:**
+
+Cloud mode stores anonymous reading signals and generated summaries on the service to provide recommendations and quota enforcement. Article/comment text is sent to an LLM provider only to generate the requested summary. We do not sell data or use it for advertising. Local mode keeps reading data on your machine. See the privacy policy for details.
 
 ---
 
 ## 单一用途说明（Single Purpose）
 
-This extension has a single purpose: to enhance the Hacker News reading experience by providing AI-generated summaries and personalized content recommendations based on user reading behavior.
+HN Reader has one purpose: improve the Hacker News reading experience by generating AI summaries and personalized article highlights based on the user's reading signals.
 
-All functionality — article summaries, comment summaries, behavior tracking, and recommendations — serves this single purpose of improving the user's Hacker News browsing experience.
+All features — article summaries, comment summaries, reading signals, recommendations, and quota display — serve that single purpose.
 
 ---
 
@@ -65,25 +61,46 @@ All functionality — article summaries, comment summaries, behavior tracking, a
 
 ### `storage`
 
-**Why needed:** The extension uses `chrome.storage.local` to persist two user-configured settings locally on the device:
-1. The user's self-hosted HN Reader server URL
-2. The preferred summary language (Chinese or English)
-
-**Why required permission:** This data must be retained across browser sessions. It is stored locally via Chrome's `storage` API and never leaves the user's device.
+Used to persist the anonymous cloud token, selected mode (cloud/local), summary language, local server URL, and the auto-preload preference in `chrome.storage.local`. These settings must survive browser restarts. The token is generated by the service and stays on the device except when authenticating API requests.
 
 ### `host_permissions: https://news.ycombinator.com/*`
 
-**Why needed:** This host permission is required for our content scripts (`content-list.js` and `content-item.js`) to inject AI-powered summary buttons and personalized article highlights directly into Hacker News pages.
+Required by the content scripts (`content-list.js`, `content-item.js`) to inject summary buttons and highlights into Hacker News pages. The extension does not run on any other website.
 
-**Why required permission:** The extension only runs on `news.ycombinator.com` and does not access any other websites.
+### `host_permissions: https://hn-reader.whoareyou.ren/*`
+
+Required for the background service worker to call the HN Reader cloud API (anonymous account creation, summaries, reading signals, recommendations, quota, and account export/deletion). This is the only cloud endpoint the extension contacts.
+
+### Local mode
+
+Local mode is an advanced option that connects to a server you run yourself. It does not request an additional host permission at install time; the cloud host permission above is only used for Cloud mode.
+
+---
+
+## 数据用途披露（Chrome Web Store privacy practices）
+
+Select the categories that apply:
+
+| Category | Selected | Explanation |
+|---|---|---|
+| Website content | Yes | Article URLs/titles and comment text are sent to generate summaries; article pages may be fetched server-side. |
+| User activity | Yes | Reading signals (article/comment clicks, summary views, favorites) are stored to build recommendations. |
+| Authentication information | Yes | An anonymous random token identifies the account; no name, email, or password is collected. |
+| Personally identifiable information | No | No name, email, address, or phone number. |
+| Health, financial, or payment information | No | Not collected. |
+| Location | No | Not collected. |
+| Web history | No | General browsing history is not collected; the extension only runs on Hacker News. |
+
+- Data is **not sold** to third parties.
+- Data is **not used or transferred for purposes unrelated to the single purpose**.
+- Data is **not used to determine creditworthiness** or for lending.
+- LLM provider processing is service-provider processing for the requested summary.
 
 ---
 
 ## 远程代码声明（Remote Code）
 
-This extension does **not** use any remote code. All JavaScript code is bundled within the extension package.
-
-The extension communicates only with the user's self-hosted local server (configured via the popup UI, default `http://localhost:8080`). Communication is limited to data exchange via JSON API calls (`fetch`), not remote code execution. No external scripts are loaded or evaluated.
+This extension does **not** use remote code. All JavaScript is bundled in the extension package. The extension exchanges JSON with the cloud API and a user-configured local server; it does not load or evaluate remote scripts.
 
 ---
 
@@ -91,10 +108,10 @@ The extension communicates only with the user's self-hosted local server (config
 
 | 字段 | 内容 |
 |------|------|
-| **开发者/公司名** | （填写你的名称） |
+| **开发者/公司名** | （提交前填写） |
 | **网站** | https://github.com/ejacky/hn-reader |
-| **隐私政策链接** | https://github.com/ejacky/hn-reader/blob/main/PRIVACY.md |
-| **支持邮箱** | （可选） |
+| **隐私政策链接** | https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md |
+| **支持邮箱** | support@whoareyou.ren（提交前替换为可用邮箱） |
 
 ---
 
@@ -102,29 +119,35 @@ The extension communicates only with the user's self-hosted local server (config
 
 ### 2026-06-03 — 首次审核被拒绝（Purple Potassium）
 
-**拒绝原因：** 请求但未使用 `activeTab` 权限。审核员要求全面检查权限，确保所有声明的权限都是当前功能所必需的。
+**拒绝原因：** 请求但未使用 `activeTab` 权限。
 
 **修改内容：**
-- 从 `manifest.json` 的 `permissions` 中移除了未使用的 `activeTab`
-- 从 `manifest.json` 的 `host_permissions` 中移除了 `http://localhost/*`
-- 版本号从 `1.0.0` 提升至 `1.0.1`
-- 同步更新了商店描述，强化价值主张和权限说明
+- 从 `permissions` 中移除未使用的 `activeTab`；
+- 从 `host_permissions` 中移除未使用的 `http://localhost/*`；
+- 版本号提升至 1.0.1；
+- 强化价值主张和权限说明。
 
-**重新提交注意事项：**
-- 权限理由需明确说明 `storage` 和 `news.ycombinator.com/*` 的用途
-- 描述中需突出扩展需配合本地服务使用
-- Remote Code 回答 `No`
+### 2026-10-22 — 云服务上线材料更新
+
+- 版本提升至 1.2.0，默认云模式；
+- 新增 `https://hn-reader.whoareyou.ren/*` 权限及说明；
+- 隐私政策改为覆盖云模式（数据收集、用途、保留期、导出/删除、LLM 提供商）；
+- 更新数据用途披露；
+- 移除“必须自建本地服务”的描述，保留本地模式为可选项；
+- 移除 Pro 升级入口（首发免费版，支付接入后再恢复）。
 
 ---
 
 ## 上架检查清单
 
-- [x] `manifest.json` 版本号已更新（`1.0.1`）
-- [x] 未使用权限已移除（`activeTab`、`http://localhost/*`）
-- [ ] 截图已上传（`../assets/screen1.png`、`screen2.png`、`screen3.png`）
+- [x] `manifest.json` 版本号已更新（`1.2.0`）
+- [x] 云 API 域名权限已声明并说明
+- [x] 隐私政策已覆盖云模式，链接路径正确
+- [x] 数据用途披露已填写
+- [x] 单一用途说明已更新
+- [x] 远程代码声明为 No
+- [ ] 截图已更新（`../assets/screen1.png`、`screen2.png`、`screen3.png`）
 - [ ] 商店图标已打包（`extension/icons/` 16×16, 48×48, 128×128）
-- [ ] 隐私政策链接可用（GitHub 上的 `PRIVACY.md`）
-- [ ] 单一用途说明已填写
-- [ ] 权限理由已填写
-- [ ] 远程代码声明已确认（`No`）
+- [ ] 支持邮箱已替换为可用地址
+- [ ] 开发者/公司名已填写
 - [ ] 发布说明已更新（`RELEASE_NOTES.md`）

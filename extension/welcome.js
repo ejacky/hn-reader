@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function ensureToken() {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'ensureCloudToken' }, (resp) => {
+      chrome.runtime.sendMessage({ action: 'ensureCloudToken', payload: { force: true } }, (resp) => {
         resolve(resp?.ok && resp.data?.success);
       });
     });

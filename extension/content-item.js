@@ -13,6 +13,7 @@
         if (!response || !response.ok) {
           const err = new Error(response?.error || 'Unknown error');
           err.status = response?.status || 0;
+          err.code = response?.code || '';
           reject(err);
           return;
         }
@@ -122,10 +123,32 @@
           await sendSignal('comment', hnId, 'comment_summary_viewed', 2, { author });
         } catch (err) {
           console.error('HN Reader comment summary:', err);
-          if (err.status === 429) {
+          if (err.code === 'quota_exceeded' || (err.status === 429 && !err.code)) {
             btn.textContent = ' [额度已用完]';
             btn.style.color = '#e00';
-            btn.title = '本月免费额度已用完，升级到 Pro 继续使用';
+            btn.title = '本月免费额度已用完，下月 1 日自动重置';
+          } else if (err.code === 'rate_limited') {
+            btn.textContent = ' [请稍后]';
+            btn.style.color = '#e00';
+            btn.title = '请求过于频繁，请稍后重试';
+            setTimeout(() => {
+              if (btn.textContent === ' [请稍后]') {
+                btn.textContent = ' [summarize]';
+                btn.style.color = '#ff6600';
+                btn.title = '';
+              }
+            }, 5000);
+          } else if (err.code === 'service_busy' || err.code === 'llm_unavailable') {
+            btn.textContent = ' [服务繁忙]';
+            btn.style.color = '#e00';
+            btn.title = '服务繁忙，请稍后重试';
+            setTimeout(() => {
+              if (btn.textContent === ' [服务繁忙]') {
+                btn.textContent = ' [summarize]';
+                btn.style.color = '#ff6600';
+                btn.title = '';
+              }
+            }, 5000);
           }
         } finally {
           if (btn.textContent === ' [loading...]') {

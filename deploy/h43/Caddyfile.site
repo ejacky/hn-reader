@@ -1,0 +1,35 @@
+# Append to /root/simpletimetracker-web/Caddyfile, then:
+#   docker compose -f /root/simpletimetracker-web/docker-compose.yml \
+#     exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+#   docker compose -f /root/simpletimetracker-web/docker-compose.yml \
+#     exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+#
+# Caddy issues the certificate automatically. No downtime for STT: reload is
+# graceful and the existing stt.whoareyou.ren block is untouched.
+hn-reader.whoareyou.ren {
+	encode zstd gzip
+
+	request_body {
+		max_size 256KB
+	}
+
+	# Optional temporary gate while the API still lacks rate limiting/SSRF
+	# protection. Uncomment and replace with the operator's public IP.
+	# @blocked not remote_ip 203.0.113.10
+	# respond @blocked "HN Reader cloud is not public yet" 403
+
+	reverse_proxy hn-reader-server:8080 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
