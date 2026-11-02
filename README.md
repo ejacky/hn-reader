@@ -37,6 +37,7 @@ hn-reader/
 │       ├── preloader/  # 预加载
 │       └── config/     # 配置管理
 └── deploy/h43/         # 生产部署（docker-compose / Caddy / 备份）
+└── deploy/h43-test/    # staging 部署（test.hn-reader.whoareyou.ren，CI 自动部署）
 ```
 
 ## 快速开始
@@ -48,7 +49,8 @@ hn-reader/
 3. 访问 [news.ycombinator.com](https://news.ycombinator.com)，点击文章旁的 `[summary]` 即可使用
 4. 每月免费额度用完后，扩展会引导你升级到 Pro
 
-> 当前云服务域名：`https://hn-reader.whoareyou.ren`（部署前可修改 `extension/config.js` 中的 `CLOUD_BASE_URL`）
+> 当前云服务域名：`https://hn-reader.whoareyou.ren`（staging 为 `https://test.hn-reader.whoareyou.ren`，
+> 联调时用 `hn_reader_cloud_url` 覆盖键切换，见 [deploy/h43-test/README.md](deploy/h43-test/README.md)）
 
 ### 方式二：本地服务
 
@@ -139,6 +141,9 @@ CLOUD_BASE_URL: 'http://localhost:8080'
 当前生产部署：`https://hn-reader.whoareyou.ren`（h43，PostgreSQL + Go + Caddy）。
 
 完整的容器、Caddy、网络、备份与回滚说明见 [deploy/h43/README.md](deploy/h43/README.md)。
+
+staging：`https://test.hn-reader.whoareyou.ren`，与生产同机但完全隔离（独立库/容器/网络别名/IP 白名单），
+推 `dev`/`fix/**`/`feat/**` 由 GitHub Actions 自动部署，见 [deploy/h43-test/README.md](deploy/h43-test/README.md)。
 
 ## 技术栈
 

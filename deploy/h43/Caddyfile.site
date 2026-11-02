@@ -1,11 +1,13 @@
-# Append to /root/simpletimetracker-web/Caddyfile, then:
-#   docker compose -f /root/simpletimetracker-web/docker-compose.yml \
-#     exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-#   docker compose -f /root/simpletimetracker-web/docker-compose.yml \
-#     exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+# Site fragment, installed by hand into the edge's sites directory:
+#   install -m 644 deploy/h43/Caddyfile.site /root/edge/sites/hn-reader.caddy
+#   docker compose -f /root/edge/docker-compose.yml exec -T caddy \
+#     caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+#   docker compose -f /root/edge/docker-compose.yml exec -T caddy \
+#     caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 #
-# Caddy issues the certificate automatically. No downtime for STT: reload is
-# graceful and the existing stt.whoareyou.ren block is untouched.
+# The edge imports one fragment per application, so this file cannot reach STT's
+# or staging's ingress. Caddy issues the certificate automatically; the reload is
+# graceful and the existing sites are untouched.
 hn-reader.whoareyou.ren {
 	encode zstd gzip
 

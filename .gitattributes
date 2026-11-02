@@ -1,0 +1,4 @@
+# Shell scripts run on the Linux hosts (h43), where a CRLF shebang fails with
+# "bad interpreter". The rest of the repository is checked out with core.autocrlf
+# on Windows, so opt these files out of that conversion explicitly.
+*.sh text eol=lf

@@ -50,6 +50,7 @@ func newServer(cfg *config.Config, repo storage.Repository, version string, clou
 		DailyBudget:     cfg.LLMDailyBudget,
 		Timeout:         cfg.LLMTimeout,
 		MaxOutputTokens: cfg.LLMMaxOutputTokens,
+		ReasoningEffort: cfg.LLMReasoningEffort,
 	})
 	f := fetcher.New(cfg.HNBaseURL)
 	s := &Server{
@@ -599,17 +600,20 @@ func (s *Server) handlePreloadArticles(c *gin.Context) {
 	userID := s.getUserID(c)
 	queued, skipped := 0, 0
 	quotaExceeded := false
+	results := make([]gin.H, 0, len(req.Articles))
 
-	for _, article := range req.Articles {
+	for i, article := range req.Articles {
 		article.Lang = normalizeLang(article.Lang)
 		if article.HNID <= 0 || strings.TrimSpace(article.Title) == "" ||
 			len(article.Title) > 500 || len(article.URL) > 2048 {
 			skipped++
+			results = append(results, gin.H{"hn_id": article.HNID, "status": "invalid"})
 			continue
 		}
 
 		if existing, err := s.repo.GetArticle(userID, article.HNID, article.Lang); err == nil && existing != nil && existing.Summary != "" {
 			skipped++
+			results = append(results, gin.H{"hn_id": article.HNID, "status": "cached"})
 			continue
 		}
 		if cached, err := s.repo.GetGlobalArticle(article.HNID, article.Lang); err == nil && cached != nil && cached.Summary != "" {
@@ -617,6 +621,7 @@ func (s *Server) handlePreloadArticles(c *gin.Context) {
 				log.Printf("save preloaded cached article failed: %v", err)
 			}
 			skipped++
+			results = append(results, gin.H{"hn_id": article.HNID, "status": "cached"})
 			continue
 		}
 
@@ -629,6 +634,25 @@ func (s *Server) handlePreloadArticles(c *gin.Context) {
 			}
 			if !ok {
 				quotaExceeded = true
+				// Nothing from here on is queued. Classify each remaining article
+				// so the caller knows which ones will never arrive, and why.
+				for _, rest := range req.Articles[i:] {
+					rest.Lang = normalizeLang(rest.Lang)
+					status := "quota_exceeded"
+					if rest.HNID <= 0 || strings.TrimSpace(rest.Title) == "" ||
+						len(rest.Title) > 500 || len(rest.URL) > 2048 {
+						status = "invalid"
+					} else if existing, err := s.repo.GetArticle(userID, rest.HNID, rest.Lang); err == nil && existing != nil && existing.Summary != "" {
+						status = "cached"
+					} else if cached, err := s.repo.GetGlobalArticle(rest.HNID, rest.Lang); err == nil && cached != nil && cached.Summary != "" {
+						if err := s.repo.SaveArticle(userID, cached); err != nil {
+							log.Printf("save preloaded cached article failed: %v", err)
+						}
+						status = "cached"
+					}
+					skipped++
+					results = append(results, gin.H{"hn_id": rest.HNID, "status": status})
+				}
 				break
 			}
 			reserved = true
@@ -643,15 +667,18 @@ func (s *Server) handlePreloadArticles(c *gin.Context) {
 			}
 			log.Printf("preload skipped hn_id=%d reason=%s", article.HNID, reason)
 			skipped++
+			results = append(results, gin.H{"hn_id": article.HNID, "status": reason})
 			continue
 		}
 		queued++
+		results = append(results, gin.H{"hn_id": article.HNID, "status": "queued"})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"queued":         queued,
 		"skipped":        skipped,
 		"quota_exceeded": quotaExceeded,
+		"results":        results,
 	})
 }
 

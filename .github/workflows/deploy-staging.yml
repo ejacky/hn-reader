@@ -1,0 +1,164 @@
+# Deploy the staging environment on h43: https://test.hn-reader.whoareyou.ren
+#
+# Why this file exists next to cloud-server.yml: that workflow builds and pushes
+# an image to GHCR, but nothing deploys it, and h43 cannot reach github.com
+# (only api.github.com / ghcr.io), so pulling a private package from there would
+# be a second, weaker path. This pipeline builds the binary the same way the
+# production deployment does - cross-compiled, `-tags cloud`, uploaded, then
+# wrapped in the image on the host - and pushes it over SSH with a health gate.
+#
+# Production is not deployed from here. `main` is excluded on purpose.
+name: Deploy staging (h43)
+
+on:
+  push:
+    branches: ['dev', 'fix/**', 'feat/**']
+    paths:
+      - 'server/**'
+      - 'deploy/h43-test/**'
+      - 'deploy/h43/Dockerfile'
+      - '.github/workflows/deploy-staging.yml'
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: 'Run smoke.sh on the host after deploying (spends a few LLM calls)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two pushes in a row must deploy one after the other, not fight over the host.
+concurrency:
+  group: deploy-staging-h43
+  cancel-in-progress: false
+
+env:
+  STAGING_DIR: /root/hn-reader-test
+  # User=root matters: on a GitHub runner the default ssh user would be `runner`,
+  # and the host only authorises the deploy key for root (see H43_SSH_KEY).
+  SSH_OPTS: -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes -o User=root
+
+jobs:
+  deploy:
+    # Never feed staging from the production branch: main is deployed by hand.
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: staging
+      url: https://test.hn-reader.whoareyou.ren
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: server/go.sum
+
+      # A red commit never reaches the host.
+      - name: Test (local mode)
+        working-directory: server
+        run: go test ./...
+
+      - name: Test (cloud mode)
+        working-directory: server
+        run: go test -tags cloud ./...
+
+      - name: Vet (cloud mode)
+        working-directory: server
+        run: go vet -tags cloud ./...
+
+      - name: Build linux binary
+        id: build
+        working-directory: server
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA:0:7}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags cloud -trimpath \
+            -ldflags "-s -w -X main.buildSuffix=-staging.${sha}" \
+            -o "${RUNNER_TEMP}/hn-reader-cloud" ./cmd/hn-reader-cloud
+          sum="$(sha256sum "${RUNNER_TEMP}/hn-reader-cloud" | cut -d' ' -f1)"
+          echo "sha7=${sha}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${sum}" >> "$GITHUB_OUTPUT"
+          ls -l "${RUNNER_TEMP}/hn-reader-cloud"
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.H43_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.H43_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh -G "${{ vars.H43_HOST }}" >/dev/null
+
+      # The host key is pinned; a changed key is a real failure, not something to
+      # click through. Only the connection is retried - never the deploy itself.
+      - name: Check connectivity
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            if ssh $SSH_OPTS "${{ vars.H43_HOST }}" 'echo connected'; then
+              exit 0
+            fi
+            echo "attempt $i failed; retrying" >&2
+            sleep 5
+          done
+          echo "::error::cannot ssh to the staging host - check H43_SSH_KEY, H43_SSH_KNOWN_HOSTS and the security group"
+          exit 1
+
+      - name: Upload binary and deploy files
+        run: |
+          set -euo pipefail
+          H="${{ vars.H43_HOST }}"
+          ssh $SSH_OPTS "$H" "install -d -m 755 '$STAGING_DIR'"
+          # -C: the binary is ~26 MB and the runner sits outside China; compressed
+          # ssh turns that into ~8 MB and roughly a third of the wall time.
+          scp -C $SSH_OPTS "${RUNNER_TEMP}/hn-reader-cloud" "$H:$STAGING_DIR/hn-reader-cloud.new"
+          scp -C $SSH_OPTS deploy/h43-test/docker-compose.yml \
+                         deploy/h43-test/Caddyfile.site \
+                         deploy/h43-test/deploy.sh \
+                         deploy/h43-test/.dockerignore \
+                         deploy/h43/Dockerfile \
+                         "$H:$STAGING_DIR/"
+          ssh $SSH_OPTS "$H" "chmod +x '$STAGING_DIR/deploy.sh'"
+
+      # Everything that can go wrong from here (bad fragment, container that will
+      # not start, version mismatch) is handled on the host by deploy.sh, which
+      # rolls the image back and reports whether that restored service.
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          ssh $SSH_OPTS "${{ vars.H43_HOST }}" \
+            "cd '$STAGING_DIR' && ./deploy.sh --sha '${{ steps.build.outputs.sha7 }}' --sha256 '${{ steps.build.outputs.sha256 }}'"
+
+      - name: Verify the deployed version
+        run: |
+          set -euo pipefail
+          H="${{ vars.H43_HOST }}"
+          health="$(ssh $SSH_OPTS "$H" 'curl -fsS http://127.0.0.1:8083/health')"
+          echo "$health"
+          if ! printf '%s' "$health" | grep -q "${{ steps.build.outputs.sha7 }}"; then
+            echo "::error::/health does not report the deployed commit: $health"
+            exit 1
+          fi
+
+      - name: Smoke test (optional)
+        if: github.event_name == 'workflow_dispatch' && inputs.smoke == true
+        run: ssh $SSH_OPTS "${{ vars.H43_HOST }}" "'$STAGING_DIR/smoke.sh'"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### staging: ${{ job.status }}"
+            echo ""
+            echo "- commit: \`${GITHUB_SHA:0:7}\`"
+            echo "- expected version: \`1.2.0-staging.${{ steps.build.outputs.sha7 }}\`"
+            echo "- health: https://test.hn-reader.whoareyou.ren/health (allowlisted addresses only)"
+            echo "- rollback: rerun the last green run of this workflow, or \`deploy.sh --rollback\` on the host"
+          } >> "$GITHUB_STEP_SUMMARY"

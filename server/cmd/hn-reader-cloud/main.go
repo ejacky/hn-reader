@@ -19,10 +19,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "1.2.0"
+// version is the release number; buildSuffix is what a non-production build
+// stamps on top of it, so /health can answer "which commit is this?":
+//
+//	-ldflags "-X main.buildSuffix=-staging.0a3652f"
+//
+// Both are variables, not constants: -X only rewrites variables. Production
+// builds pass no suffix and keep reporting the bare release number.
+var (
+	version     = "1.2.0"
+	buildSuffix = ""
+)
 
 func main() {
 	cfg := config.LoadCloud()
+	fullVersion := version + buildSuffix
 
 	repo, err := storage.NewPostgres(cfg.DatabaseURL)
 	if err != nil {
@@ -40,7 +51,7 @@ func main() {
 	r.Use(corsMiddleware())
 	r.Use(bodyLimit(cfg.MaxBodyBytes))
 
-	server := api.NewCloud(cfg, repo, version)
+	server := api.NewCloud(cfg, repo, fullVersion)
 	server.RegisterRoutes(r)
 
 	port := cfg.Port
@@ -61,7 +72,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("HN Reader Cloud v%s listening on :%s", version, port)
+		log.Printf("HN Reader Cloud v%s listening on :%s", fullVersion, port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("server failed: %v", err)
 		}

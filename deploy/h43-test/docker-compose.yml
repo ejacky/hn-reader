@@ -1,0 +1,90 @@
+# HN Reader staging on h43 (43.142.113.109) — https://test.hn-reader.whoareyou.ren
+#
+# Layout on the host:
+#   /root/hn-reader-test/
+#     docker-compose.yml
+#     Dockerfile            # copied from deploy/h43/Dockerfile; same runtime image
+#     hn-reader-cloud       # linux/amd64 binary, built with -tags cloud
+#     .env                  # chmod 600, not in git, CI never writes it
+#     deploy.sh             # installs the site fragment, swaps the binary, health gate
+#     smoke.sh
+#     .last-good-image      # written by deploy.sh, read by --rollback
+#
+# Isolation is the point: its own compose project, database container, volume
+# and loopback port. The only thing it shares with production is the `edge`
+# network, so the edge's Caddy can resolve `hn-reader-test-server` by name.
+name: hn-reader-test
+
+services:
+  db:
+    # Same digest as production, derived on THIS host:
+    #   docker image inspect postgres:16-alpine --format '{{range .RepoDigests}}{{println .}}{{end}}'
+    image: postgres:16-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815
+    container_name: hn-reader-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hn_reader
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: hn_reader
+      TZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hn_reader -d hn_reader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    # Not named `server`: a compose service name becomes a DNS alias on every
+    # network it joins, and the production stack already answers to `server` on
+    # the shared `edge` network. The edge proxies to the container name instead.
+    #
+    # The image is built by deploy.sh (docker build -f Dockerfile), not by
+    # compose: the binary is cross-compiled on the workstation/CI and copied
+    # next to this file, exactly like the production deployment.
+    image: ${IMAGE_TAG:?IMAGE_TAG is exported by deploy.sh}
+    container_name: hn-reader-test-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://hn_reader:${POSTGRES_PASSWORD}@db:5432/hn_reader?sslmode=disable
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY in .env}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-v4-pro}
+    ports:
+      # Loopback only, for smoke tests: the edge reaches the container by name.
+      # Production uses 8082; 8083 is reserved for staging.
+      - "127.0.0.1:8083:8080"
+    networks:
+      - internal
+      - edge
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  internal:
+  edge:
+    external: true
+    # Created once by hand and shared with the edge and with production:
+    #   docker network create edge
+    name: edge
+
+volumes:
+  pgdata:

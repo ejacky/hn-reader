@@ -4,7 +4,7 @@
  */
 
 const CONFIG = {
-  // 云服务默认地址，部署后可修改
+  // 云服务默认地址（生产）。联调 staging 时不要改这里，用下面的 CLOUD_URL 覆盖键。
   CLOUD_BASE_URL: 'https://hn-reader.whoareyou.ren',
 
   // local storage keys
@@ -12,6 +12,10 @@ const CONFIG = {
     MODE: 'hn_reader_mode',
     CLOUD_TOKEN: 'hn_reader_cloud_token',
     CLOUD_EMAIL: 'hn_reader_cloud_email',
+    // 可选的云端地址覆盖（staging 联调开关，非发行面功能）：
+    //   await chrome.storage.local.set({ hn_reader_cloud_url: 'https://test.hn-reader.whoareyou.ren' })
+    //   await chrome.storage.local.remove(['hn_reader_cloud_url', 'hn_reader_cloud_token'])
+    CLOUD_URL: 'hn_reader_cloud_url',
     SERVER_URL: 'hn_reader_server_url',
     LANGUAGE: 'hn_reader_language',
     AUTO_PRELOAD: 'hn_reader_auto_preload'
@@ -39,9 +43,11 @@ async function getReaderConfig() {
   const email = result[CONFIG.KEYS.CLOUD_EMAIL] || null;
   const serverUrl = result[CONFIG.KEYS.SERVER_URL] || CONFIG.DEFAULTS.SERVER_URL;
   const language = result[CONFIG.KEYS.LANGUAGE] || CONFIG.DEFAULTS.LANGUAGE;
+  // 覆盖键只用于 staging 联调；没有设置时行为与之前完全一致。
+  const cloudUrl = result[CONFIG.KEYS.CLOUD_URL] || CONFIG.CLOUD_BASE_URL;
 
   const baseUrl = mode === 'cloud'
-    ? CONFIG.CLOUD_BASE_URL
+    ? cloudUrl
     : (serverUrl || CONFIG.DEFAULTS.SERVER_URL);
 
   return { mode, baseUrl, token, email, serverUrl, language };

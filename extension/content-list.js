@@ -44,36 +44,151 @@
     return await sendToBg('summarizeArticle', { hn_id: hnId, url: url, title: title, lang: lang });
   }
 
+  const PRELOAD_BATCH = 15;
+  const PRELOAD_POLL_MS = 3000;
+  // 单条等待上限。服务端 3 个 worker 抢 15 条，每条最多 6 次 LLM 请求、单次
+  // 最长 90 秒，尾部条目光是排队就可能数分钟，所以按条目计时并给足余量。
+  const PRELOAD_TIMEOUT_MS = 300000;
+  // 超时后仍可能补到结果，持续慢速复查到页面卸载，避免把"还在跑"判成"永久失败"
+  const PRELOAD_LATE_POLL_MS = 30000;
+  const PRELOAD_FAILED_STATUSES = new Set([
+    'invalid', 'quota_exceeded', 'user_limit', 'queue_full', 'closed', 'request_failed'
+  ]);
+  const preloadPending = new Set();
+  const preloadStartedAt = new Map();
+  const preloadTimers = new Set();
+  let preloadPollInFlight = false;
+  let preloadStarted = false;
+
+  function clearPreloadTimers() {
+    preloadTimers.forEach(id => clearInterval(id));
+    preloadTimers.clear();
+  }
+
+  function trackPending(hnId) {
+    const id = Number(hnId);
+    preloadPending.add(id);
+    if (!preloadStartedAt.has(id)) preloadStartedAt.set(id, Date.now());
+  }
+
+  function untrackPending(hnId) {
+    const id = Number(hnId);
+    preloadPending.delete(id);
+    preloadStartedAt.delete(id);
+  }
+
   async function preloadArticles(articles) {
-    if (articles.length === 0) return;
+    if (articles.length === 0) return { results: null };
     try {
-      await sendToBg('preloadArticles', { articles });
+      const data = await sendToBg('preloadArticles', { articles });
+      return { results: data && Array.isArray(data.results) ? data.results : null };
     } catch (e) {
       console.error('[HN Reader] preload request failed:', e);
+      return { results: null, error: e };
     }
   }
 
+  function markPreloaded(hnId) {
+    const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${hnId}"]`);
+    if (!btn) return;
+    btn.dataset.hnReaderPreloaded = 'true';
+    delete btn.dataset.hnReaderPreloadFailed;
+    delete btn.dataset.hnReaderPreloadFailedReason;
+    // 如果当前摘要弹窗正打开，不要覆盖蓝色激活状态
+    const popupOpen = document.querySelector(`.hn-reader-popup[data-hn-reader-hn-id="${hnId}"]`);
+    if (!popupOpen) {
+      btn.style.color = '#228b22';
+      btn.title = '已预加载';
+    }
+  }
+
+  function preloadFailedTitle(reason) {
+    return reason === 'quota_exceeded' ? '额度不足，未能预加载' : '预加载失败，点击可手动加载';
+  }
+
+  function markPreloadFailed(hnId, reason) {
+    const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${hnId}"]`);
+    if (!btn || btn.dataset.hnReaderPreloaded === 'true') return;
+    // 记住失败态和原因，避免弹窗开合后 setSummaryBtnState 把文案降级成默认橙色
+    btn.dataset.hnReaderPreloadFailed = 'true';
+    btn.dataset.hnReaderPreloadFailedReason = reason || '';
+    btn.style.color = '#999';
+    btn.title = preloadFailedTitle(reason);
+  }
+
+  function applyPreloadResults(results) {
+    results.forEach(r => {
+      const id = Number(r.hn_id);
+      switch (r.status) {
+        case 'queued':
+        case 'duplicate':
+          // duplicate 表示同一篇已有一份在跑，等它完成即可
+          trackPending(id);
+          break;
+        case 'cached':
+          untrackPending(id);
+          markPreloaded(id);
+          break;
+        default:
+          untrackPending(id);
+          if (PRELOAD_FAILED_STATUSES.has(r.status)) {
+            markPreloadFailed(id, r.status);
+          } else {
+            // 未知状态（服务端新增取值）按待定处理，不要误判成失败
+            trackPending(id);
+          }
+      }
+    });
+  }
+
   async function pollPreloadStatus(articleIds, lang) {
-    if (articleIds.length === 0) return;
+    if (articleIds.length === 0) return [];
     try {
       const data = await sendToBg('preloadStatus', { ids: articleIds.join(','), lang });
-      if (data.ready_ids) {
-        data.ready_ids.forEach(id => {
-          const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${id}"]`);
-          if (btn) {
-            btn.dataset.hnReaderPreloaded = 'true';
-            // 如果当前摘要弹窗正打开，不要覆盖蓝色激活状态
-            const popupOpen = document.querySelector(`.hn-reader-popup[data-hn-reader-hn-id="${id}"]`);
-            if (!popupOpen) {
-              btn.style.color = '#228b22';
-              btn.title = '已预加载';
-            }
-          }
-        });
-      }
+      const ready = (data && data.ready_ids) || [];
+      ready.forEach(id => {
+        untrackPending(id);
+        markPreloaded(id);
+      });
+      return ready;
     } catch (e) {
       console.error('[HN Reader] preload status poll failed:', e);
+      return [];
     }
+  }
+
+  function scheduleLatePoll(ids, lang) {
+    if (ids.length === 0) return;
+    const remaining = ids.slice();
+    const timer = setInterval(async () => {
+      if (remaining.length === 0) {
+        clearInterval(timer);
+        preloadTimers.delete(timer);
+        return;
+      }
+      const ready = await pollPreloadStatus(remaining, lang);
+      const readySet = new Set(ready.map(Number));
+      for (let i = remaining.length - 1; i >= 0; i--) {
+        if (readySet.has(remaining[i])) remaining.splice(i, 1);
+      }
+    }, PRELOAD_LATE_POLL_MS);
+    preloadTimers.add(timer);
+  }
+
+  function expirePendingPreloads(lang) {
+    const now = Date.now();
+    const expired = [];
+    preloadPending.forEach(id => {
+      const started = preloadStartedAt.get(id) || now;
+      if (now - started > PRELOAD_TIMEOUT_MS) expired.push(id);
+    });
+    if (expired.length === 0) return;
+    expired.forEach(id => {
+      untrackPending(id);
+      markPreloadFailed(id, 'timeout');
+    });
+    // 慢速复查：服务端可能只是排在长队后面，晚到的结果仍要把灰色改成绿色
+    scheduleLatePoll(expired, lang);
   }
 
   function showNoticeTip(targetBtn, title, message) {
@@ -128,11 +243,15 @@
     const btn = document.querySelector(`a[data-hn-reader-summary][data-hn-id="${hnId}"]`);
     if (!btn) return;
     if (active) {
+      delete btn.dataset.hnReaderPreloadFailed;
       btn.style.color = '#0066cc';
       btn.title = '摘要已打开';
     } else if (btn.dataset.hnReaderPreloaded === 'true') {
       btn.style.color = '#228b22';
       btn.title = '已预加载';
+    } else if (btn.dataset.hnReaderPreloadFailed === 'true') {
+      btn.style.color = '#999';
+      btn.title = preloadFailedTitle(btn.dataset.hnReaderPreloadFailedReason || '');
     } else {
       btn.style.color = '#ff6600';
       btn.title = '';
@@ -440,6 +559,9 @@
   }
 
   async function startPreload() {
+    // 内容脚本被重复注入时只跑一次，避免双份预加载请求和双份轮询
+    if (preloadStarted) return;
+    preloadStarted = true;
     const rows = document.querySelectorAll('.athing');
     const articles = [];
     rows.forEach(row => {
@@ -452,8 +574,7 @@
       articles.push({
         hn_id: hnId,
         url: titleLink.href,
-        title: titleLink.textContent,
-        lang: 'zh'
+        title: titleLink.textContent
       });
     });
 
@@ -467,25 +588,56 @@
 
     // 只在开启自动预加载且非收藏页面时提交新的预加载请求；收藏页文章可能已总结过
     if (autoPreload && shouldPreloadNewArticles()) {
-      const batch = articles.slice(0, 15);
-      batch.forEach(a => a.lang = lang);
-      preloadArticles(batch);
+      const batch = articles.slice(0, PRELOAD_BATCH).map(a => ({
+        hn_id: a.hn_id,
+        url: a.url,
+        title: a.title,
+        lang: lang
+      }));
+      const { results, error } = await preloadArticles(batch);
+      if (results) {
+        applyPreloadResults(results);
+        // 服务端可能截断或漏报个别条目，剩下的交给轮询兜底
+        const reported = new Set(results.map(r => Number(r.hn_id)));
+        batch.forEach(a => {
+          if (!reported.has(Number(a.hn_id))) trackPending(a.hn_id);
+        });
+      } else if (error && error.status >= 400 && error.status < 500 && error.status !== 429) {
+        // 请求本身被拒（鉴权、路径、旧服务端），等下去不会变好
+        batch.forEach(a => markPreloadFailed(a.hn_id, 'request_failed'));
+      } else {
+        // 网络错误、超时、429 限流或旧版服务端：全部按待定处理，交给轮询兜底
+        batch.forEach(a => trackPending(a.hn_id));
+      }
     }
 
     // 总是查询当前页文章的已总结状态，刷新后恢复绿色标记
     // （手动加载的文章也会存入服务端缓存，可据此还原状态）
-    pollPreloadStatus(allIds, lang);
+    await pollPreloadStatus(allIds, lang);
 
     // 仅开启自动预加载时才持续轮询，等待后台预加载完成
     if (autoPreload) {
-      const intervalId = setInterval(() => {
-        pollPreloadStatus(allIds, lang);
-      }, 3000);
+      const intervalId = setInterval(async () => {
+        // 慢响应时不要叠加轮询请求
+        if (preloadPollInFlight) return;
+        if (preloadPending.size > 0) {
+          preloadPollInFlight = true;
+          try {
+            await pollPreloadStatus(Array.from(preloadPending), lang);
+          } finally {
+            preloadPollInFlight = false;
+          }
+        }
+        expirePendingPreloads(lang);
+        if (preloadPending.size === 0) {
+          clearInterval(intervalId);
+          preloadTimers.delete(intervalId);
+        }
+      }, PRELOAD_POLL_MS);
+      preloadTimers.add(intervalId);
 
-      // 页面卸载时停止轮询
-      window.addEventListener('beforeunload', () => {
-        clearInterval(intervalId);
-      });
+      // 页面卸载时停止所有轮询（含超时后的慢速复查）
+      window.addEventListener('pagehide', clearPreloadTimers);
     }
   }
 

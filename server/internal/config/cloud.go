@@ -20,7 +20,10 @@ func LoadCloud() *Config {
 		LLMDailyBudget:     getEnvInt("LLM_DAILY_BUDGET", 2000),
 		LLMMaxConcurrency:  getEnvInt("LLM_MAX_CONCURRENCY", 4),
 		LLMTimeout:         time.Duration(getEnvInt("LLM_TIMEOUT_SECONDS", 90)) * time.Second,
-		LLMMaxOutputTokens: getEnvInt("LLM_MAX_OUTPUT_TOKENS", 600),
+		LLMMaxOutputTokens: getEnvInt("LLM_MAX_OUTPUT_TOKENS", 1500),
+		LLMReasoningEffort: getEnv("LLM_REASONING_EFFORT", "none"),
+		// Set LLM_REASONING_EFFORT=off to omit the parameter entirely for models
+		// or gateways that reject it.
 		FreeQuotaLimit:     getEnvInt("FREE_QUOTA_LIMIT", 50),
 		MaxBodyBytes:       getEnvInt64("MAX_BODY_BYTES", 256*1024),
 		SignupRatePerHour:  getEnvInt("SIGNUP_RATE_PER_HOUR", 5),
