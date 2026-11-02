@@ -8,8 +8,8 @@
 #     .env                     # chmod 600; not in git
 #     backups/
 #
-# Caddy (the existing simpletimetracker-web stack) terminates TLS and proxies
-# hn-reader.whoareyou.ren to hn-reader-server:8080 over the STT compose network.
+# Caddy in the edge project (/root/edge) terminates TLS and proxies
+# hn-reader.whoareyou.ren to hn-reader-server:8080 over the shared `edge` network.
 # The server is NOT published publicly; 127.0.0.1:8082 is a loopback-only debug
 # port for smoke tests and pg_dump-style operations.
 name: hn-reader
@@ -76,8 +76,9 @@ networks:
   internal:
   edge:
     external: true
-    # Created by the STT compose project; Caddy is already attached to it.
-    name: simpletimetracker-web_default
+    # Created once by hand and shared with the edge project and with staging:
+    #   docker network create edge
+    name: edge
 
 volumes:
   pgdata:

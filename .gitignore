@@ -6,6 +6,12 @@ server/hn-reader-cloud
 deploy/h43/hn-reader-cloud
 deploy/h43/.env
 deploy/h43/backups/
+deploy/h43-test/.env
+deploy/h43-test/hn-reader-cloud
+deploy/h43-test/hn-reader-cloud.new
+deploy/h43-test/hn-reader-cloud.prev
+deploy/h43-test/.last-good-image
+deploy/h43-test/backups/
 server/cloud/.env
 server/cloud/*.exe
 server/cloud/cloud-server

@@ -1,0 +1,42 @@
+# Staging site fragment, installed into the edge by deploy.sh:
+#   /root/edge/sites/hn-reader-test.caddy
+#
+# The edge imports one fragment per application, so this file cannot reach the
+# production (hn-reader) or STT ingress. Reload is graceful: a bad fragment is
+# rejected by `caddy validate` and the running configuration keeps serving.
+#
+# Access control: staging holds a real LLM key, so the allowlist is the gate.
+# Everything outside it gets a 403 with an explicit body — a bare timeout would
+# be indistinguishable from a broken deployment.
+# Keep every entry as a single IP where possible: an operator's address changes
+# more often than their laptop does, and widening a /24 lets strangers spend the
+# staging budget. To add one: edit this file, copy it over, run deploy.sh (it
+# reloads the edge), or reload by hand — see README.md.
+test.hn-reader.whoareyou.ren {
+	encode zstd gzip
+
+	request_body {
+		max_size 256KB
+	}
+
+	@blocked not remote_ip 171.88.165.161
+	respond @blocked "hn-reader staging: source IP not allowlisted" 403
+
+	reverse_proxy hn-reader-test-server:8080 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+		# Anchor against cross-wiring: /health's version suffix and this header
+		# together say which environment answered.
+		X-Env "staging"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

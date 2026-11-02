@@ -1,0 +1,11 @@
+.env
+.env.*
+backups/
+Caddyfile.site
+docker-compose.yml
+deploy.sh
+smoke.sh
+README.md
+hn-reader-cloud.new
+hn-reader-cloud.prev
+.last-good-image

@@ -8,26 +8,28 @@ Target: `https://hn-reader.whoareyou.ren` → `43.142.113.109` (Tencent CVM, Roc
 Internet
   │  80/443
   ▼
-Caddy (existing simpletimetracker-web stack, TLS + HSTS)
-  │  reverse_proxy hn-reader-server:8080
-  │  (Docker network simpletimetracker-web_default)
+edge (independent project, /root/edge, TLS + HSTS)
+  │  sites/hn-reader.caddy  →  reverse_proxy hn-reader-server:8080
+  │  (Docker network `edge`, shared with every application on this host)
   ▼
 hn-reader-server (Go, -tags cloud) ── hn-reader-db (PostgreSQL 16, no public port)
 ```
 
-- Caddy remains the only process bound to 80/443.
+- The edge remains the only process bound to 80/443. It is its own compose
+  project: each application installs one fragment into `/root/edge/sites/`, so no
+  application's deploy can reach another's ingress.
 - The cloud server is not published publicly; `127.0.0.1:8082` is a loopback-only
   debug port for smoke tests.
-- The server joins the existing STT compose network so Caddy can resolve it by
-  name. Do not run `docker compose down` in `simpletimetracker-web` while
-  HN Reader is meant to stay online: that removes the shared network.
+- The server joins the shared external network `edge` so the edge can resolve it
+  by name. Do not run `docker compose down` in `/root/edge` while HN Reader is
+  meant to stay online: that removes the container serving every site here.
 
 ## Current deployment
 
 - Image `hn-reader-cloud:1.2.0`; `/health` reports `1.2.0`.
 - PostgreSQL 16 pinned by digest; data in volume `hn-reader_pgdata`.
-- Caddy site added to `/root/simpletimetracker-web/Caddyfile` (backup kept as
-  `Caddyfile.bak.*`), with `request_body` limit and `header_up` overwrites for
+- Site installed as `/root/edge/sites/hn-reader.caddy` from this directory's
+  `Caddyfile.site`, with `request_body` limit and `header_up` overwrites for
   `X-Forwarded-For` / `X-Real-IP`.
 - The temporary IP allowlist was removed on 2026-10-22 after the P0 checks;
   anonymous signup, per-user rate limits, SSRF protection, and the global LLM
@@ -36,12 +38,15 @@ hn-reader-server (Go, -tags cloud) ── hn-reader-db (PostgreSQL 16, no public
   dumps are mode 600.
 - Fixed blocking bug: anonymous signup previously failed because `users.email`
   was NULL and scanned into a Go string; schema/queries now use `''`/`COALESCE`.
+- Staging (`https://test.hn-reader.whoareyou.ren`) lives in `deploy/h43-test/` and
+  is deployed by CI; it shares only the `edge` network with this stack.
 
 ## Prerequisites
 
 - DNS: `hn-reader.whoareyou.ren A 43.142.113.109`.
 - Ports 80/443 reachable from the Internet (already used by STT).
-- The STT stack and its `simpletimetracker-web_default` network are running.
+- The edge project is running and owns 80/443:
+  `docker compose -f /root/edge/docker-compose.yml up -d`.
 
 ## Build and upload
 
@@ -104,7 +109,9 @@ docker exec hn-reader-server wget -qO- http://127.0.0.1:8080/health
 
 ## Caddy
 
-The site block must include the forwarded-header overwrites and the body limit:
+The edge imports one fragment per application, so this site is a file of its own:
+`/root/edge/sites/hn-reader.caddy`, copied from this directory's `Caddyfile.site`.
+It must keep the forwarded-header overwrites and the body limit:
 
 ```caddyfile
 hn-reader.whoareyou.ren {
@@ -135,25 +142,27 @@ hn-reader.whoareyou.ren {
 }
 ```
 
-Apply:
+Apply (validate first; a rejected reload leaves the running configuration in
+place):
 
 ```bash
-cd /root/simpletimetracker-web
-cp -p Caddyfile "Caddyfile.bak.$(date -u +%Y%m%d-%H%M%S)"
-# append/replace the hn-reader block, then:
-docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+install -m 644 deploy/h43/Caddyfile.site /root/edge/sites/hn-reader.caddy
+docker compose -f /root/edge/docker-compose.yml exec -T caddy \
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose -f /root/edge/docker-compose.yml exec -T caddy \
+  caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
+
+`/root/edge/sites/` is a directory bind mount, so replacing a fragment is safe —
+the running container picks the new file up on reload. (The single-file gotcha
+that used to bite here belonged to the old setup, where the whole Caddyfile was
+hand-appended to STT's stack; that file is no longer read by anything.)
 
 Removing the gate is the same procedure with the `@blocked`/`respond` lines
 deleted; validate and reload again.
 
-> **Bind-mount gotcha:** `/root/simpletimetracker-web/Caddyfile` is mounted as a
-> single file. If you replace it with `cp`/`mv` (a new inode), the running Caddy
-> container keeps the old file and `caddy reload` will say "config is
-> unchanged". Edit it in place (`cat new > Caddyfile`) and then reload. If the
-> inode was already replaced, recreate only Caddy once:
-> `docker compose up -d --force-recreate caddy` (brief STT downtime).
+The staging environment has its own fragment (`hn-reader-test.caddy`) and its own
+README: `deploy/h43-test/README.md`.
 
 ## Smoke tests
 
@@ -171,10 +180,13 @@ curl -sS -m 120 -X POST http://127.0.0.1:8082/api/summarize/article \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"hn_id":1,"url":"https://example.com","title":"Example Domain","lang":"en"}'
 
-# SSRF guard: expect 400 invalid_url
+# SSRF guard: expect 400. The summarizer resolves the story through the HN API
+# and uses that canonical URL, so for a REAL id the client's URL is ignored
+# entirely (this returns 200). The guard is exercised by an id the API cannot
+# resolve, which leaves no canonical URL to fall back on.
 curl -sS -X POST http://127.0.0.1:8082/api/summarize/article \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"hn_id":1,"url":"http://169.254.169.254/latest/meta-data","title":"x","lang":"en"}'
+  -d '{"hn_id":999999999,"url":"http://169.254.169.254/latest/meta-data","title":"x","lang":"en"}'
 
 # public TLS
 curl -sSI https://hn-reader.whoareyou.ren/health
