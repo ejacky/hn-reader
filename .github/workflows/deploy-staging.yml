@@ -35,7 +35,9 @@ concurrency:
 
 env:
   STAGING_DIR: /root/hn-reader-test
-  SSH_OPTS: -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes
+  # User=root matters: on a GitHub runner the default ssh user would be `runner`,
+  # and the host only authorises the deploy key for root (see H43_SSH_KEY).
+  SSH_OPTS: -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes -o User=root
 
 jobs:
   deploy:
