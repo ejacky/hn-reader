@@ -1,12 +1,12 @@
 const DOWNLOAD_URL = 'https://github.com/ejacky/hn-reader/releases/latest';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await ensureI18n();
+
   const statusEl = document.getElementById('status');
 
   // Cloud elements
   const cloudSection = document.getElementById('cloudSection');
-  const cloudLanguageSelect = document.getElementById('cloudLanguage');
-  const saveCloudBtn = document.getElementById('saveCloudBtn');
   const switchToLocalBtn = document.getElementById('switchToLocalBtn');
   const quotaSection = document.getElementById('quotaSection');
   const quotaFill = document.getElementById('quotaFill');
@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Local elements
   const localSection = document.getElementById('localSection');
   const serverUrlInput = document.getElementById('serverUrl');
-  const localLanguageSelect = document.getElementById('localLanguage');
   const saveLocalBtn = document.getElementById('saveLocalBtn');
   const switchToCloudBtn = document.getElementById('switchToCloudBtn');
   const localGuide = document.getElementById('localGuide');
@@ -35,10 +34,57 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   autoPreloadToggle.addEventListener('change', async () => {
     await chrome.storage.local.set({ [CONFIG.KEYS.AUTO_PRELOAD]: autoPreloadToggle.checked });
-    statusEl.textContent = '已保存';
+    updateSummaryWarning();
+    statusEl.textContent = t('statusSaved');
     statusEl.style.color = '#008000';
     setTimeout(() => statusEl.textContent = '', 2000);
   });
+
+  // 语言设置：界面语言立即生效；摘要语言默认跟随界面，也可单独指定。
+  const uiLanguageSelect = document.getElementById('uiLanguage');
+  const summaryLanguageSelect = document.getElementById('summaryLanguage');
+  const summaryLanguageWarning = document.getElementById('summaryLanguageWarning');
+
+  function uiLanguageName() {
+    return resolvedHtmlLang() === 'zh-CN' ? '中文' : 'English';
+  }
+
+  function updateSummaryFollowLabel() {
+    summaryLanguageSelect.options[0].textContent = t('summaryLanguageFollow', [uiLanguageName()]);
+  }
+
+  function updateSummaryWarning() {
+    summaryLanguageWarning.hidden = !autoPreloadToggle.checked;
+  }
+
+  const uiLanguageResult = await chrome.storage.local.get([CONFIG.KEYS.UI_LANGUAGE]);
+  uiLanguageSelect.value = uiLanguageResult[CONFIG.KEYS.UI_LANGUAGE] || 'auto';
+  uiLanguageSelect.addEventListener('change', async () => {
+    await chrome.storage.local.set({ [CONFIG.KEYS.UI_LANGUAGE]: uiLanguageSelect.value });
+    sessionStorage.setItem('hn_reader_ui_language_changed', '1');
+    location.reload();
+  });
+
+  // 'auto'（跟随界面）不写存储；显式选择才写 hn_reader_language，选回跟随就删掉。
+  const summaryResult = await chrome.storage.local.get([CONFIG.KEYS.LANGUAGE]);
+  const storedSummaryLanguage = summaryResult[CONFIG.KEYS.LANGUAGE];
+  summaryLanguageSelect.value = storedSummaryLanguage === 'zh' || storedSummaryLanguage === 'en'
+    ? storedSummaryLanguage
+    : 'auto';
+  updateSummaryFollowLabel();
+  updateSummaryWarning();
+
+  summaryLanguageSelect.addEventListener('change', async () => {
+    if (summaryLanguageSelect.value === 'auto') {
+      await chrome.storage.local.remove([CONFIG.KEYS.LANGUAGE]);
+    } else {
+      await chrome.storage.local.set({ [CONFIG.KEYS.LANGUAGE]: summaryLanguageSelect.value });
+    }
+    statusEl.textContent = t('statusSaved');
+    statusEl.style.color = '#008000';
+    setTimeout(() => statusEl.textContent = '', 2000);
+  });
+
 
   // Load config
   let cfg = await getReaderConfig();
@@ -49,11 +95,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (mode === 'cloud') {
       cloudSection.style.display = 'block';
-      cloudLanguageSelect.value = cfg.language;
     } else if (mode === 'local') {
       localSection.style.display = 'block';
       serverUrlInput.value = cfg.serverUrl;
-      localLanguageSelect.value = cfg.language;
     }
   }
 
@@ -75,36 +119,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refreshConnection();
   });
 
-  saveCloudBtn.addEventListener('click', async () => {
-    await setReaderConfig({
-      language: cloudLanguageSelect.value
-    });
-    statusEl.textContent = '已保存';
-    statusEl.style.color = '#008000';
-    setTimeout(() => statusEl.textContent = '', 2000);
-  });
-
   saveLocalBtn.addEventListener('click', async () => {
     const url = serverUrlInput.value.trim() || 'http://localhost:8080';
     if (!url.startsWith('http')) {
-      statusEl.textContent = '地址格式错误';
+      statusEl.textContent = t('errInvalidUrl');
       statusEl.style.color = '#e00';
       return;
     }
     await setReaderConfig({
       mode: 'local',
-      serverUrl: url,
-      language: localLanguageSelect.value
+      serverUrl: url
     });
     cfg = await getReaderConfig();
-    statusEl.textContent = '保存中...';
+    statusEl.textContent = t('statusSaving');
     await refreshConnection();
   });
 
   exportDataBtn.addEventListener('click', async () => {
     const resp = await sendAction('apiRequest', { method: 'GET', path: '/api/account/export' });
     if (!resp.ok) {
-      statusEl.textContent = '导出失败：' + (resp.error || '未知错误');
+      statusEl.textContent = t('errExportFailed', [resp.error || t('unknownError')]);
       statusEl.style.color = '#e00';
       return;
     }
@@ -117,37 +151,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    statusEl.textContent = '已导出';
+    statusEl.textContent = t('statusExported');
     statusEl.style.color = '#008000';
   });
 
   deleteAccountBtn.addEventListener('click', async () => {
-    if (!confirm('确定删除云端账户及所有阅读数据？此操作不可恢复。')) return;
+    if (!confirm(t('confirmDeleteAccount'))) return;
     const resp = await sendAction('apiRequest', { method: 'DELETE', path: '/api/account' });
     if (!resp.ok) {
-      statusEl.textContent = '删除失败：' + (resp.error || '未知错误');
+      statusEl.textContent = t('errDeleteFailed', [resp.error || t('unknownError')]);
       statusEl.style.color = '#e00';
       return;
     }
     await chrome.storage.local.remove([CONFIG.KEYS.CLOUD_TOKEN]);
-    cloudAccountStatus.textContent = '云端数据已删除';
+    cloudAccountStatus.textContent = t('cloudDataDeleted');
     quotaSection.style.display = 'none';
     quotaExhausted.style.display = 'none';
-    statusEl.textContent = '已删除；下次使用会创建新的匿名账户';
+    statusEl.textContent = t('accountDeletedHint');
     statusEl.style.color = '#008000';
   });
 
   async function sendAction(action, payload = {}) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ action, payload }, (resp) => {
-        resolve(resp || { ok: false, error: 'no response' });
+        resolve(resp || { ok: false, error: t('errNoResponse') });
       });
     });
   }
 
   async function refreshConnection() {
     cfg = await getReaderConfig();
-    connText.textContent = '检测中...';
+    connText.textContent = t('connChecking');
     connIndicator.style.color = '#999';
     statusEl.textContent = '';
 
@@ -156,8 +190,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (probe.ok && probe.data.connected) {
       connIndicator.style.color = '#008000';
       const info = probe.data.info || {};
-      connText.textContent = cfg.mode === 'cloud' ? '云服务已连接' : '本地服务已连接';
-      statusEl.textContent = '连接成功';
+      connText.textContent = cfg.mode === 'cloud' ? t('cloudConnected') : t('localConnected');
+      statusEl.textContent = t('connectSuccess');
       statusEl.style.color = '#008000';
       localGuide.style.display = 'none';
 
@@ -167,8 +201,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadServerData();
     } else {
       connIndicator.style.color = '#e00';
-      connText.textContent = cfg.mode === 'cloud' ? '云服务未连接' : '未检测到本地服务';
-      statusEl.textContent = probe.ok ? '无法连接' : (probe.error || '无法连接');
+      connText.textContent = cfg.mode === 'cloud' ? t('cloudDisconnected') : t('localDisconnected');
+      statusEl.textContent = probe.ok ? t('errCannotConnect') : (probe.error || t('errCannotConnect'));
       statusEl.style.color = '#e00';
       if (cfg.mode === 'local') {
         localGuide.style.display = 'block';
@@ -180,12 +214,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadCloudMeta() {
     const resp = await sendAction('apiRequest', { method: 'GET', path: '/auth/me' });
     if (!resp.ok || !resp.data) {
-      cloudAccountStatus.textContent = '匿名账户';
+      cloudAccountStatus.textContent = t('accountAnonymous');
       return;
     }
 
     const { plan, quota_used, quota_limit, quota_reset_at } = resp.data;
-    cloudAccountStatus.textContent = plan === 'free' ? '匿名账户（免费版）' : (plan || '匿名账户');
+    cloudAccountStatus.textContent = plan === 'free' ? t('accountAnonymousFree') : (plan || t('accountAnonymous'));
 
     quotaSection.style.display = 'block';
     const used = quota_used || 0;
@@ -195,8 +229,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     quotaFill.style.background = pct >= 90 ? '#e00' : '#ff6600';
 
     const reset = quota_reset_at ? new Date(quota_reset_at) : null;
-    const resetText = reset && !isNaN(reset.getTime()) ? ` · ${reset.toLocaleDateString()} 重置` : '';
-    quotaText.textContent = `${used}/${limit} 次${resetText}`;
+    const resetText = reset && !isNaN(reset.getTime()) ? t('quotaReset', [reset.toLocaleDateString()]) : '';
+    quotaText.textContent = t('quotaUsage', [String(used), String(limit)]) + resetText;
 
     quotaExhausted.style.display = used >= limit ? 'block' : 'none';
     if (used >= limit) {
@@ -215,7 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (statsResp.ok) {
         const stats = statsResp.data;
         statsSection.style.display = 'block';
-        let html = `<p>Total signals: <strong>${stats.total_signals || 0}</strong></p>`;
+        let html = `<p>${t('statsTotalSignals')} <strong>${stats.total_signals || 0}</strong></p>`;
         if (stats.by_type) {
           html += '<ul>';
           for (const [type, count] of Object.entries(stats.by_type)) {
@@ -256,4 +290,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await refreshConnection();
+
+  // 刚切换过界面语言：连接状态之后提示，避免被 refreshConnection 覆盖。
+  if (sessionStorage.getItem('hn_reader_ui_language_changed')) {
+    sessionStorage.removeItem('hn_reader_ui_language_changed');
+    const hint = t('uiLanguageChangedHint');
+    statusEl.textContent = hint;
+    statusEl.style.color = '#008000';
+    setTimeout(() => {
+      if (statusEl.textContent === hint) statusEl.textContent = '';
+    }, 6000);
+  }
 });

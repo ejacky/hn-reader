@@ -3,6 +3,22 @@
 
   console.log('[HN Reader] content-list.js loaded');
 
+  // 按钮文案会在不同状态之间做相等比较，先算好，避免每次重新取。
+  // 列表页用 [summary]，评论页（content-item.js）用 [summarize]，两者不要合并。
+  // 界面语言要等 i18n 就绪后才能确定，所以在 init() 里生成。
+  let LABEL = null;
+
+  function buildLabels() {
+    LABEL = {
+      summary: ` ${t('btnSummary')}`,
+      loading: ` ${t('btnLoading')}`,
+      failed: ` ${t('btnFailed')}`,
+      quotaExceeded: ` ${t('btnQuotaExceeded')}`,
+      rateLimited: ` ${t('btnRateLimited')}`,
+      serviceBusy: ` ${t('btnServiceBusy')}`
+    };
+  }
+
   async function sendToBg(action, payload) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action, payload }, (response) => {
@@ -40,7 +56,7 @@
 
   async function fetchSummary(hnId, url, title) {
     const result = await chrome.storage.local.get(['hn_reader_language']);
-    const lang = result['hn_reader_language'] || 'zh';
+    const lang = result['hn_reader_language'] || defaultSummaryLanguage();
     return await sendToBg('summarizeArticle', { hn_id: hnId, url: url, title: title, lang: lang });
   }
 
@@ -98,12 +114,12 @@
     const popupOpen = document.querySelector(`.hn-reader-popup[data-hn-reader-hn-id="${hnId}"]`);
     if (!popupOpen) {
       btn.style.color = '#228b22';
-      btn.title = '已预加载';
+      btn.title = t('preloaded');
     }
   }
 
   function preloadFailedTitle(reason) {
-    return reason === 'quota_exceeded' ? '额度不足，未能预加载' : '预加载失败，点击可手动加载';
+    return reason === 'quota_exceeded' ? t('preloadQuotaExceeded') : t('preloadFailed');
   }
 
   function markPreloadFailed(hnId, reason) {
@@ -216,7 +232,7 @@
     tip.innerHTML = `
       <div style="font-weight:bold;color:#ff6600;margin-bottom:6px;">${title}</div>
       <div style="margin-bottom:10px;color:#666;">${message}</div>
-      <button id="hn-reader-quota-close" style="background:#ff6600;color:#fff;border:none;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:11px;">知道了</button>
+      <button id="hn-reader-quota-close" style="background:#ff6600;color:#fff;border:none;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:11px;">${t('gotIt')}</button>
     `;
 
     const rect = targetBtn.getBoundingClientRect();
@@ -234,8 +250,8 @@
   function showQuotaExceededTip(targetBtn) {
     showNoticeTip(
       targetBtn,
-      '本月免费额度已用完',
-      '下月 1 日自动重置；已缓存的摘要仍可查看。'
+      t('quotaTipTitle'),
+      t('quotaTipBody')
     );
   }
 
@@ -245,10 +261,10 @@
     if (active) {
       delete btn.dataset.hnReaderPreloadFailed;
       btn.style.color = '#0066cc';
-      btn.title = '摘要已打开';
+      btn.title = t('summaryOpened');
     } else if (btn.dataset.hnReaderPreloaded === 'true') {
       btn.style.color = '#228b22';
-      btn.title = '已预加载';
+      btn.title = t('preloaded');
     } else if (btn.dataset.hnReaderPreloadFailed === 'true') {
       btn.style.color = '#999';
       btn.title = preloadFailedTitle(btn.dataset.hnReaderPreloadFailedReason || '');
@@ -293,13 +309,13 @@
       overflow: hidden;
       text-overflow: ellipsis;
     `;
-    header.textContent = title || 'Untitled';
+    header.textContent = title || t('untitled');
     card.appendChild(header);
 
     const summaryP = document.createElement('p');
     summaryP.style.margin = '0 0 8px 0';
     summaryP.style.fontWeight = 'bold';
-    summaryP.textContent = data.summary || 'No summary available.';
+    summaryP.textContent = data.summary || t('noSummary');
     card.appendChild(summaryP);
 
     if (data.key_points && data.key_points.length > 0) {
@@ -316,7 +332,7 @@
     }
 
     const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
+    closeBtn.textContent = t('closeCard');
     closeBtn.style.cssText = `
       margin-top: 8px;
       background: #ff6600;
@@ -379,6 +395,7 @@
   }
 
   function injectSummaryButtons() {
+    if (!LABEL) return;
     const rows = document.querySelectorAll('.athing');
     console.log('[HN Reader] found', rows.length, '.athing rows');
 
@@ -409,7 +426,7 @@
 
       const btn = document.createElement('a');
       btn.href = 'javascript:void(0)';
-      btn.textContent = ' [summary]';
+      btn.textContent = LABEL.summary;
       btn.style.color = '#ff6600';
       btn.style.fontSize = '10px';
       btn.style.textDecoration = 'none';
@@ -437,7 +454,7 @@
           return;
         }
 
-        btn.textContent = ' [loading...]';
+        btn.textContent = LABEL.loading;
         try {
           const data = await fetchSummary(hnId, url, title);
           card = createSummaryCard(data, hnId, title);
@@ -451,46 +468,46 @@
         } catch (err) {
           console.error('[HN Reader] summarize error:', err);
           if (err.code === 'quota_exceeded' || (err.status === 429 && !err.code)) {
-            btn.textContent = ' [额度已用完]';
+            btn.textContent = LABEL.quotaExceeded;
             btn.style.color = '#e00';
-            btn.title = '点击查看额度说明';
+            btn.title = t('quotaExceededBtnTitle');
             btn.dataset.hnReaderQuotaExceeded = 'true';
           } else if (err.code === 'rate_limited') {
-            btn.textContent = ' [请稍后]';
+            btn.textContent = LABEL.rateLimited;
             btn.style.color = '#e00';
-            btn.title = '请求过于频繁，请稍后重试';
-            showNoticeTip(btn, '请求过于频繁', '请等待几秒后再试。');
+            btn.title = t('rateLimitedTooltip');
+            showNoticeTip(btn, t('rateLimitedNoticeTitle'), t('rateLimitedNoticeBody'));
             setTimeout(() => {
-              if (btn.textContent === ' [请稍后]') {
-                btn.textContent = ' [summary]';
+              if (btn.textContent === LABEL.rateLimited) {
+                btn.textContent = LABEL.summary;
                 btn.style.color = '#ff6600';
                 btn.title = '';
               }
             }, 5000);
           } else if (err.code === 'service_busy' || err.code === 'llm_unavailable') {
-            btn.textContent = ' [服务繁忙]';
+            btn.textContent = LABEL.serviceBusy;
             btn.style.color = '#e00';
-            btn.title = '服务繁忙，请稍后重试';
+            btn.title = t('serviceBusyTooltip');
             setTimeout(() => {
-              if (btn.textContent === ' [服务繁忙]') {
-                btn.textContent = ' [summary]';
+              if (btn.textContent === LABEL.serviceBusy) {
+                btn.textContent = LABEL.summary;
                 btn.style.color = '#ff6600';
                 btn.title = '';
               }
             }, 5000);
           } else {
-            btn.textContent = ' [failed]';
+            btn.textContent = LABEL.failed;
             btn.style.color = '#e00';
-            btn.title = '摘要失败：' + err.message;
+            btn.title = t('summaryFailed', [err.message]);
             setTimeout(() => {
-              btn.textContent = ' [summary]';
+              btn.textContent = LABEL.summary;
               btn.style.color = '#ff6600';
               btn.title = '';
             }, 3000);
           }
         } finally {
-          if (btn.textContent === ' [loading...]') {
-            btn.textContent = ' [summary]';
+          if (btn.textContent === LABEL.loading) {
+            btn.textContent = LABEL.summary;
           }
         }
       });
@@ -581,7 +598,7 @@
     if (articles.length === 0) return;
 
     const result = await chrome.storage.local.get(['hn_reader_language', 'hn_reader_auto_preload']);
-    const lang = result['hn_reader_language'] || 'zh';
+    const lang = result['hn_reader_language'] || defaultSummaryLanguage();
     const autoPreload = !!result['hn_reader_auto_preload'];
 
     const allIds = articles.map(a => a.hn_id);
@@ -688,13 +705,13 @@
     `;
 
     card.innerHTML = `
-      <div style="font-weight:bold;font-size:13px;margin-bottom:8px;color:#ff6600;">👋 HN Reader 已就绪</div>
+      <div style="font-weight:bold;font-size:13px;margin-bottom:8px;color:#ff6600;">${t('onboardingTitle')}</div>
       <ul style="margin:0 0 12px 16px;padding:0;">
-        <li>点击 <strong>[summary]</strong> 查看 AI 摘要</li>
-        <li>橙色边框 = 可能感兴趣的文章</li>
-        <li>点击扩展图标查看推荐和数据</li>
+        <li>${t('onboardingItem1')}</li>
+        <li>${t('onboardingItem2')}</li>
+        <li>${t('onboardingItem3')}</li>
       </ul>
-      <button id="hn-reader-onboarding-close" style="background:#ff6600;color:#fff;border:none;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:11px;">知道了，不再显示</button>
+      <button id="hn-reader-onboarding-close" style="background:#ff6600;color:#fff;border:none;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:11px;">${t('onboardingDismiss')}</button>
     `;
 
     document.body.appendChild(card);
@@ -714,6 +731,8 @@
 
   async function init() {
     console.log('[HN Reader] init() called, readyState:', document.readyState);
+    await i18nReady;
+    buildLabels();
     injectSummaryButtons();
     applyInterestMatches();
     // 延迟 2 秒后触发预加载/状态查询，等页面稳定

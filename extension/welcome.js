@@ -1,4 +1,6 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await ensureI18n();
+
   const openHnBtn = document.getElementById('openHnBtn');
   const retryBtn = document.getElementById('retryBtn');
   const statusEl = document.getElementById('status');
@@ -18,28 +20,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const failed = !!failedResult.hn_reader_cloud_auto_auth_failed;
 
     if (hasToken) {
-      openHnBtn.textContent = '去 Hacker News 试试';
+      openHnBtn.textContent = t('goToHackerNews');
       openHnBtn.disabled = false;
       retryBtn.style.display = 'none';
-      statusEl.textContent = '已准备就绪';
+      statusEl.textContent = t('ready');
       statusEl.className = 'success';
       return;
     }
 
     if (failed) {
-      openHnBtn.textContent = '去 Hacker News 试试';
+      openHnBtn.textContent = t('goToHackerNews');
       openHnBtn.disabled = true;
       retryBtn.style.display = 'block';
-      statusEl.textContent = '无法自动创建账户，请检查网络后重试';
+      statusEl.textContent = t('errAutoAccount');
       statusEl.className = 'error';
       return;
     }
 
     // 还在等待中
-    openHnBtn.textContent = '正在准备中...';
+    openHnBtn.textContent = t('preparing');
     openHnBtn.disabled = true;
     retryBtn.style.display = 'none';
-    statusEl.textContent = '正在为你准备云服务...';
+    statusEl.textContent = t('preparingCloud');
     statusEl.className = '';
 
     // 稍后再检查一次
@@ -52,14 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   retryBtn.addEventListener('click', async () => {
-    statusEl.textContent = '正在重试...';
+    statusEl.textContent = t('retrying');
     statusEl.className = '';
     retryBtn.style.display = 'none';
     const ok = await ensureToken();
     if (ok) {
       await checkStatus();
     } else {
-      statusEl.textContent = '重试失败，请检查网络';
+      statusEl.textContent = t('errRetry');
       statusEl.className = 'error';
       retryBtn.style.display = 'block';
     }

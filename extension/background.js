@@ -1,4 +1,4 @@
-importScripts('config.js');
+importScripts('i18n.js', 'config.js');
 
 const MIN_SERVER_VERSION = '1.0.0';
 const AUTH_FAILED_KEY = 'hn_reader_cloud_auto_auth_failed';
@@ -50,7 +50,7 @@ async function ensureCloudToken(force = false) {
 async function apiRequest(method, path, body = null, retried = false) {
   const tokenReady = await ensureCloudToken();
   if (!tokenReady) {
-    throw new Error('Cloud account not ready. Please check your network and try again.');
+    throw new Error(t('errCloudNotReady'));
   }
   const cfg = await getReaderConfig();
   const url = `${cfg.baseUrl}${path}`;
@@ -161,6 +161,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           break;
         case 'apiRequest':
           sendResponse({ ok: true, data: await apiRequest(request.payload.method, request.payload.path, request.payload.body) });
+          break;
+        case 'getLocaleMessages':
+          sendResponse({ ok: true, data: await loadLocaleMessages(request.payload.lang) });
           break;
         case 'probeConnection':
           const info = await probeConnection();

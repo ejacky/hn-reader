@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>欢迎使用 HN Reader</title>
+  <title data-i18n="welcomeTitle">Welcome to HN Reader</title>
   <link rel="stylesheet" href="popup.css">
   <style>
     body {
@@ -91,28 +91,28 @@
 </head>
 <body>
   <div class="welcome-card">
-    <h1>欢迎使用 HN Reader</h1>
-    <p class="subtitle">
-      HN Reader 是你的 AI 阅读助手，帮你在 Hacker News 上快速判断哪些文章值得读。
+    <h1 data-i18n="welcomeTitle">Welcome to HN Reader</h1>
+    <p class="subtitle" data-i18n="welcomeSubtitle">
+      HN Reader is your AI reading assistant, helping you quickly decide which Hacker News stories are worth reading.
     </p>
 
     <ul class="feature-list">
-      <li>点击文章旁的 <strong>[summary]</strong> 查看 AI 摘要</li>
-      <li>橙色边框标记你可能感兴趣的文章</li>
-      <li>每月免费额度，无需配置，安装即用</li>
+      <li data-i18n-html="welcomeFeature1">Click <strong>[summary]</strong> next to a story to see the AI summary</li>
+      <li data-i18n="welcomeFeature2">Orange borders mark stories you may be interested in</li>
+      <li data-i18n="welcomeFeature3">Free monthly quota, no setup, works right after install</li>
     </ul>
 
-    <button class="primary-btn" id="openHnBtn" disabled>正在准备中...</button>
-    <button class="secondary-btn" id="retryBtn" style="display:none;">重试</button>
+    <button class="primary-btn" id="openHnBtn" disabled data-i18n="preparing">Preparing...</button>
+    <button class="secondary-btn" id="retryBtn" style="display:none;" data-i18n="retry">Retry</button>
 
     <div id="status"></div>
 
-    <p class="privacy-note">
-      ☁️ 云服务会存储你的阅读信号和摘要记录，用于个性化推荐。原始网页全文不会被长期存储，数据不出售、不用于模型训练。你可以随时在扩展弹窗中导出或删除云端数据。
-      详见 <a href="https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">隐私政策</a>。
+    <p class="privacy-note" data-i18n-html="welcomePrivacy">
+      ☁️ The cloud service stores your reading signals and summary records to power personalized recommendations. Full article text is not stored long-term. Your data is never sold or used for model training. You can export or delete your cloud data from the extension popup at any time. See the <a href="https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener">privacy policy</a> for details.
     </p>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="config.js"></script>
   <script src="welcome.js"></script>
 </body>

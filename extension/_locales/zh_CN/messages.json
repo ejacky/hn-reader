@@ -1,0 +1,318 @@
+{
+  "extName": {
+    "message": "HN Reader - AI Reading Assistant"
+  },
+  "extDescription": {
+    "message": "AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup."
+  },
+
+  "connChecking": {
+    "message": "检测中..."
+  },
+  "preloadTitle": {
+    "message": "自动加载摘要"
+  },
+  "preloadDesc": {
+    "message": "打开页面时自动加载前 15 条"
+  },
+
+  "accountLabel": {
+    "message": "账户状态"
+  },
+  "accountAnonymous": {
+    "message": "匿名账户"
+  },
+  "accountAnonymousFree": {
+    "message": "匿名账户（免费版）"
+  },
+  "uiLanguageLabel": {
+    "message": "界面语言"
+  },
+  "uiLanguageAuto": {
+    "message": "跟随浏览器"
+  },
+  "summaryLanguageLabel": {
+    "message": "摘要语言"
+  },
+  "summaryLanguageFollow": {
+    "message": "跟随界面（$name$）",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "summaryLanguageHint": {
+    "message": "只影响新生成的摘要，已有摘要不会被翻译。"
+  },
+  "summaryPreloadWarning": {
+    "message": "自动加载摘要已开启：切换语言后，下次打开 HN 列表页会按新语言预加载最多 15 篇（最多消耗 15 次额度）。"
+  },
+  "uiLanguageChangedHint": {
+    "message": "界面语言已切换；已打开的 Hacker News 页面刷新后生效。"
+  },
+
+  "quotaLabel": {
+    "message": "本月额度"
+  },
+  "quotaUsage": {
+    "message": "$used$/$limit$ 次",
+    "placeholders": {
+      "used": { "content": "$1" },
+      "limit": { "content": "$2" }
+    }
+  },
+  "quotaReset": {
+    "message": " · $date$ 重置",
+    "placeholders": {
+      "date": { "content": "$1" }
+    }
+  },
+  "quotaExhaustedTitle": {
+    "message": "本月免费额度已用完"
+  },
+  "quotaExhaustedDesc": {
+    "message": "下月 1 日自动重置；已缓存的摘要仍可查看。"
+  },
+
+  "myDataLabel": {
+    "message": "我的数据"
+  },
+  "exportData": {
+    "message": "导出我的数据"
+  },
+  "deleteCloudData": {
+    "message": "删除云端数据"
+  },
+  "saveSettings": {
+    "message": "保存设置"
+  },
+  "switchToLocal": {
+    "message": "高级：使用本地服务"
+  },
+  "switchToCloud": {
+    "message": "切换回云服务"
+  },
+
+  "statsTitle": {
+    "message": "Your Stats"
+  },
+  "recTitle": {
+    "message": "Recommendations"
+  },
+  "statsTotalSignals": {
+    "message": "Total signals:"
+  },
+
+  "serverUrlLabel": {
+    "message": "Server URL"
+  },
+  "localNotDetected": {
+    "message": "未检测到本地服务。"
+  },
+  "localDisconnected": {
+    "message": "未检测到本地服务"
+  },
+  "downloadServer": {
+    "message": "下载 HN Reader 服务端"
+  },
+
+  "statusSaved": {
+    "message": "已保存"
+  },
+  "statusSaving": {
+    "message": "保存中..."
+  },
+  "statusExported": {
+    "message": "已导出"
+  },
+  "errInvalidUrl": {
+    "message": "地址格式错误"
+  },
+  "errExportFailed": {
+    "message": "导出失败：$error$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "unknownError": {
+    "message": "未知错误"
+  },
+  "confirmDeleteAccount": {
+    "message": "确定删除云端账户及所有阅读数据？此操作不可恢复。"
+  },
+  "errDeleteFailed": {
+    "message": "删除失败：$error$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cloudDataDeleted": {
+    "message": "云端数据已删除"
+  },
+  "accountDeletedHint": {
+    "message": "已删除；下次使用会创建新的匿名账户"
+  },
+
+  "cloudConnected": {
+    "message": "云服务已连接"
+  },
+  "localConnected": {
+    "message": "本地服务已连接"
+  },
+  "connectSuccess": {
+    "message": "连接成功"
+  },
+  "cloudDisconnected": {
+    "message": "云服务未连接"
+  },
+  "errCannotConnect": {
+    "message": "无法连接"
+  },
+  "errNoResponse": {
+    "message": "无响应"
+  },
+
+  "welcomeTitle": {
+    "message": "欢迎使用 HN Reader"
+  },
+  "welcomeSubtitle": {
+    "message": "HN Reader 是你的 AI 阅读助手，帮你在 Hacker News 上快速判断哪些文章值得读。"
+  },
+  "welcomeFeature1": {
+    "message": "点击文章旁的 <strong>[summary]</strong> 查看 AI 摘要"
+  },
+  "welcomeFeature2": {
+    "message": "橙色边框标记你可能感兴趣的文章"
+  },
+  "welcomeFeature3": {
+    "message": "每月免费额度，无需配置，安装即用"
+  },
+  "preparing": {
+    "message": "正在准备中..."
+  },
+  "retry": {
+    "message": "重试"
+  },
+  "welcomePrivacy": {
+    "message": "☁️ 云服务会存储你的阅读信号和摘要记录，用于个性化推荐。原始网页全文不会被长期存储，数据不出售、不用于模型训练。你可以随时在扩展弹窗中导出或删除云端数据。 详见 <a href=\"https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md\" target=\"_blank\" rel=\"noopener\">隐私政策</a>。"
+  },
+
+  "goToHackerNews": {
+    "message": "去 Hacker News 试试"
+  },
+  "ready": {
+    "message": "已准备就绪"
+  },
+  "errAutoAccount": {
+    "message": "无法自动创建账户，请检查网络后重试"
+  },
+  "preparingCloud": {
+    "message": "正在为你准备云服务..."
+  },
+  "retrying": {
+    "message": "正在重试..."
+  },
+  "errRetry": {
+    "message": "重试失败，请检查网络"
+  },
+
+  "btnSummary": {
+    "message": "[summary]"
+  },
+  "btnSummarize": {
+    "message": "[summarize]"
+  },
+  "btnLoading": {
+    "message": "[loading...]"
+  },
+  "btnClose": {
+    "message": "[close]"
+  },
+  "btnQuotaExceeded": {
+    "message": "[额度已用完]"
+  },
+  "btnRateLimited": {
+    "message": "[请稍后]"
+  },
+  "btnServiceBusy": {
+    "message": "[服务繁忙]"
+  },
+  "btnFailed": {
+    "message": "[failed]"
+  },
+
+  "quotaExceededTooltip": {
+    "message": "本月免费额度已用完，下月 1 日自动重置"
+  },
+  "quotaExceededBtnTitle": {
+    "message": "点击查看额度说明"
+  },
+  "quotaTipTitle": {
+    "message": "本月免费额度已用完"
+  },
+  "quotaTipBody": {
+    "message": "下月 1 日自动重置；已缓存的摘要仍可查看。"
+  },
+  "rateLimitedTooltip": {
+    "message": "请求过于频繁，请稍后重试"
+  },
+  "serviceBusyTooltip": {
+    "message": "服务繁忙，请稍后重试"
+  },
+  "rateLimitedNoticeTitle": {
+    "message": "请求过于频繁"
+  },
+  "rateLimitedNoticeBody": {
+    "message": "请等待几秒后再试。"
+  },
+  "gotIt": {
+    "message": "知道了"
+  },
+
+  "preloaded": {
+    "message": "已预加载"
+  },
+  "preloadQuotaExceeded": {
+    "message": "额度不足，未能预加载"
+  },
+  "preloadFailed": {
+    "message": "预加载失败，点击可手动加载"
+  },
+  "summaryOpened": {
+    "message": "摘要已打开"
+  },
+  "summaryFailed": {
+    "message": "摘要失败：$error$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "untitled": {
+    "message": "Untitled"
+  },
+  "noSummary": {
+    "message": "No summary available."
+  },
+  "closeCard": {
+    "message": "Close"
+  },
+
+  "onboardingTitle": {
+    "message": "👋 HN Reader 已就绪"
+  },
+  "onboardingItem1": {
+    "message": "点击 <strong>[summary]</strong> 查看 AI 摘要"
+  },
+  "onboardingItem2": {
+    "message": "橙色边框 = 可能感兴趣的文章"
+  },
+  "onboardingItem3": {
+    "message": "点击扩展图标查看推荐和数据"
+  },
+  "onboardingDismiss": {
+    "message": "知道了，不再显示"
+  },
+
+  "errCloudNotReady": {
+    "message": "Cloud account not ready. Please check your network and try again."
+  }
+}

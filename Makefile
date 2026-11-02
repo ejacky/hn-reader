@@ -1,6 +1,6 @@
 VERSION = 1.1.0
 
-.PHONY: build run dev extension clean install-service uninstall-service start-service release
+.PHONY: build run dev extension i18n-check clean install-service uninstall-service start-service release
 
 build:
 	cd server && go build -ldflags "-X main.Version=$(VERSION)" -o hn-reader.exe ./cmd/hn-reader
@@ -13,6 +13,9 @@ dev:
 
 extension:
 	@echo "Load extension from ./extension in Chrome developer mode"
+
+i18n-check:
+	node scripts/check-i18n.mjs
 
 clean:
 	cd server && del hn-reader.exe hn-reader.db

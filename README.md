@@ -25,6 +25,8 @@ hn-reader/
 │   ├── popup.html / popup.js
 │   ├── welcome.html / welcome.js
 │   ├── config.js           # 全局配置模块
+│   ├── i18n.js             # 界面语言判定 + 文案替换（data-i18n）
+│   ├── _locales/           # 语言包：en（默认）/ zh_CN
 │   └── icons/
 ├── server/             # Go 后端（local + cloud 共用）
 │   ├── cmd/hn-reader/          # 本地服务入口

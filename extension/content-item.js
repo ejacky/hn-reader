@@ -1,6 +1,21 @@
 (function() {
   'use strict';
 
+  // 按钮文案会在不同状态之间做相等比较，先算好，避免每次重新取。
+  // 界面语言要等 i18n 就绪后才能确定，所以在 init() 里生成。
+  let LABEL = null;
+
+  function buildLabels() {
+    LABEL = {
+      summarize: ` ${t('btnSummarize')}`,
+      loading: ` ${t('btnLoading')}`,
+      close: ` ${t('btnClose')}`,
+      quotaExceeded: ` ${t('btnQuotaExceeded')}`,
+      rateLimited: ` ${t('btnRateLimited')}`,
+      serviceBusy: ` ${t('btnServiceBusy')}`
+    };
+  }
+
   async function sendToBg(action, payload) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ action, payload }, (response) => {
@@ -38,7 +53,7 @@
 
   async function fetchCommentSummary(hnId, articleId, author, text) {
     const result = await chrome.storage.local.get(['hn_reader_language']);
-    const lang = result['hn_reader_language'] || 'zh';
+    const lang = result['hn_reader_language'] || defaultSummaryLanguage();
     return await sendToBg('summarizeComment', { hn_id: hnId, article_id: articleId, author, text, lang: lang });
   }
 
@@ -48,6 +63,7 @@
   }
 
   function injectCommentSummaryButtons() {
+    if (!LABEL) return;
     const comments = document.querySelectorAll('.comtr');
     const articleId = getArticleIdFromUrl();
 
@@ -70,7 +86,7 @@
 
       const btn = document.createElement('a');
       btn.href = 'javascript:void(0)';
-      btn.textContent = ' [summarize]';
+      btn.textContent = LABEL.summarize;
       btn.style.color = '#ff6600';
       btn.style.fontSize = '10px';
       btn.style.textDecoration = 'none';
@@ -88,7 +104,7 @@
           return;
         }
 
-        btn.textContent = ' [loading...]';
+        btn.textContent = LABEL.loading;
         try {
           const data = await fetchCommentSummary(hnId, articleId, author, text);
           summaryDiv = document.createElement('div');
@@ -105,16 +121,16 @@
             color: #000;
             line-height: 1.4;
           `;
-          summaryDiv.textContent = data.summary || 'No summary available.';
+          summaryDiv.textContent = data.summary || t('noSummary');
 
           const closeBtn = document.createElement('a');
           closeBtn.href = 'javascript:void(0)';
-          closeBtn.textContent = ' [close]';
+          closeBtn.textContent = LABEL.close;
           closeBtn.style.color = '#666';
           closeBtn.style.fontSize = '10px';
           closeBtn.style.marginLeft = '8px';
           closeBtn.style.cursor = 'pointer';
-          closeBtn.onclick = (ev) => { ev.preventDefault(); summaryDiv.remove(); summaryDiv = null; btn.textContent = ' [summarize]'; };
+          closeBtn.onclick = (ev) => { ev.preventDefault(); summaryDiv.remove(); summaryDiv = null; btn.textContent = LABEL.summarize; };
           closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
           summaryDiv.appendChild(closeBtn);
 
@@ -124,35 +140,35 @@
         } catch (err) {
           console.error('HN Reader comment summary:', err);
           if (err.code === 'quota_exceeded' || (err.status === 429 && !err.code)) {
-            btn.textContent = ' [额度已用完]';
+            btn.textContent = LABEL.quotaExceeded;
             btn.style.color = '#e00';
-            btn.title = '本月免费额度已用完，下月 1 日自动重置';
+            btn.title = t('quotaExceededTooltip');
           } else if (err.code === 'rate_limited') {
-            btn.textContent = ' [请稍后]';
+            btn.textContent = LABEL.rateLimited;
             btn.style.color = '#e00';
-            btn.title = '请求过于频繁，请稍后重试';
+            btn.title = t('rateLimitedTooltip');
             setTimeout(() => {
-              if (btn.textContent === ' [请稍后]') {
-                btn.textContent = ' [summarize]';
+              if (btn.textContent === LABEL.rateLimited) {
+                btn.textContent = LABEL.summarize;
                 btn.style.color = '#ff6600';
                 btn.title = '';
               }
             }, 5000);
           } else if (err.code === 'service_busy' || err.code === 'llm_unavailable') {
-            btn.textContent = ' [服务繁忙]';
+            btn.textContent = LABEL.serviceBusy;
             btn.style.color = '#e00';
-            btn.title = '服务繁忙，请稍后重试';
+            btn.title = t('serviceBusyTooltip');
             setTimeout(() => {
-              if (btn.textContent === ' [服务繁忙]') {
-                btn.textContent = ' [summarize]';
+              if (btn.textContent === LABEL.serviceBusy) {
+                btn.textContent = LABEL.summarize;
                 btn.style.color = '#ff6600';
                 btn.title = '';
               }
             }, 5000);
           }
         } finally {
-          if (btn.textContent === ' [loading...]') {
-            btn.textContent = ' [summarize]';
+          if (btn.textContent === LABEL.loading) {
+            btn.textContent = LABEL.summarize;
           }
         }
       });
@@ -229,7 +245,9 @@
     });
   }
 
-  function init() {
+  async function init() {
+    await i18nReady;
+    buildLabels();
     injectCommentSummaryButtons();
     monitorFavoriteButtons();
   }
