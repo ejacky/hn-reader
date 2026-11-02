@@ -27,7 +27,7 @@ import (
 // Both are variables, not constants: -X only rewrites variables. Production
 // builds pass no suffix and keep reporting the bare release number.
 var (
-	version     = "1.2.0"
+	version     = "1.3.0"
 	buildSuffix = ""
 )
 

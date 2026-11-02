@@ -10,7 +10,7 @@
 | 字段 | 内容 |
 |------|------|
 | **名称** | HN Reader - AI Reading Assistant |
-| **版本** | 1.2.0（与 `manifest.json` 保持一致） |
+| **版本** | 1.3.0（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
 | **默认语言** | English |
 
@@ -129,7 +129,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ### 2026-10-22 — 云服务上线材料更新
 
-- 版本提升至 1.2.0，默认云模式；
+- 版本提升至 1.3.0，界面英文化，默认云模式；
 - 新增 `https://hn-reader.whoareyou.ren/*` 权限及说明；
 - 隐私政策改为覆盖云模式（数据收集、用途、保留期、导出/删除、LLM 提供商）；
 - 更新数据用途披露；
@@ -140,7 +140,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 上架检查清单
 
-- [x] `manifest.json` 版本号已更新（`1.2.0`）
+- [x] `manifest.json` 版本号已更新（`1.3.0`）
 - [x] 云 API 域名权限已声明并说明
 - [x] 隐私政策已覆盖云模式，链接路径正确
 - [x] 数据用途披露已填写

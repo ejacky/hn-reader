@@ -1,3 +1,56 @@
+# HN Reader v1.3.0 — English UI & Reliable Preloading
+
+## Release Title
+
+HN Reader v1.3.0 — English interface, i18n groundwork, and the preload fix
+
+## Release Notes
+
+### Extension
+
+- **English by default.** The interface now follows the browser language through
+  `_locales`: `en` is the default catalog and `zh_CN` is kept complete. A new
+  setting overrides the browser (Auto / English / 中文) without changing Chrome's
+  own language.
+- **Summary language follows the interface** unless the user has chosen one.
+- **Preload state is explicit.** Each story shows preloaded, or failed *with a
+  reason*, instead of silently spinning; entries that never arrive expire after
+  five minutes rather than hanging forever.
+- Summary and preload requests give up after 20 seconds instead of waiting on a
+  dead connection.
+
+### Cloud service
+
+- Reasoning models no longer return empty content: the output budget can be
+  raised when a response is cut off by `finish_reason=length`, and
+  `LLM_REASONING_EFFORT=none` is the default so chain-of-thought does not eat the
+  whole budget.
+- The preload endpoint answers with a status per article (`queued`, `cached`,
+  `invalid`, `duplicate`, `user_limit`, `queue_full`, `quota_exceeded`), so the
+  client can tell "still coming" from "never coming".
+- `/health` reports the build's commit suffix, so a non-production image is
+  distinguishable from the release one.
+
+### Infrastructure
+
+- New staging environment `https://test.hn-reader.whoareyou.ren` on h43: its own
+  database, container, volume and port, an IP allowlist, and automatic deployment
+  from GitHub Actions on pushes to `dev` / `fix/**` / `feat/**`.
+
+### Upgrade notes
+
+- Extension `1.3.0`; cloud `/health` reports `1.3.0`.
+- Production environment: `LLM_MAX_OUTPUT_TOKENS=1500`, `LLM_REASONING_EFFORT=none`.
+
+### Known issues
+
+- Articles whose pages cannot be fetched from the h43 host (GitHub is
+  unreachable, IPv6-only hosts, CDNs that block China or require a JS challenge)
+  never produce a summary; the client now says so instead of waiting. Tracked in
+  #11.
+
+---
+
 # HN Reader v1.2.0 — Cloud Hardening & Launch Readiness
 
 ## Release Title

@@ -26,7 +26,7 @@ hn-reader-server (Go, -tags cloud) ── hn-reader-db (PostgreSQL 16, no public
 
 ## Current deployment
 
-- Image `hn-reader-cloud:1.2.0`; `/health` reports `1.2.0`.
+- Image `hn-reader-cloud:1.3.0`; `/health` reports `1.3.0`.
 - PostgreSQL 16 pinned by digest; data in volume `hn-reader_pgdata`.
 - Site installed as `/root/edge/sites/hn-reader.caddy` from this directory's
   `Caddyfile.site`, with `request_body` limit and `header_up` overwrites for
@@ -197,7 +197,7 @@ curl -sSI https://hn-reader.whoareyou.ren/health
 ```bash
 # build on the workstation, upload, then:
 cd /root/hn-reader
-docker build -t hn-reader-cloud:1.2.1 .
+docker build -t hn-reader-cloud:1.3.1 .
 docker compose up -d server
 ```
 
