@@ -1,0 +1,27 @@
+name: Extension i18n
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'extension/**'
+      - 'scripts/check-i18n.mjs'
+      - '.github/workflows/extension-i18n.yml'
+  pull_request:
+    paths:
+      - 'extension/**'
+      - 'scripts/check-i18n.mjs'
+      - '.github/workflows/extension-i18n.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check locale catalogs
+        run: node scripts/check-i18n.mjs

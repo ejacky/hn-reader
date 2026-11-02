@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "HN Reader - AI Reading Assistant",
+  "default_locale": "en",
+  "name": "__MSG_extName__",
   "version": "1.2.0",
-  "description": "AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup.",
+  "description": "__MSG_extDescription__",
   "permissions": [
     "storage"
   ],
@@ -17,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["https://news.ycombinator.com/*"],
-      "js": ["content-list.js", "content-item.js"],
+      "js": ["i18n.js", "content-list.js", "content-item.js"],
       "run_at": "document_end"
     }
   ],

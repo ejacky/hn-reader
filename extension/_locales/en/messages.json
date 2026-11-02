@@ -1,0 +1,318 @@
+{
+  "extName": {
+    "message": "HN Reader - AI Reading Assistant"
+  },
+  "extDescription": {
+    "message": "AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup."
+  },
+
+  "connChecking": {
+    "message": "Checking..."
+  },
+  "preloadTitle": {
+    "message": "Auto-load summaries"
+  },
+  "preloadDesc": {
+    "message": "Load summaries for the first 15 stories when a page opens"
+  },
+
+  "accountLabel": {
+    "message": "Account status"
+  },
+  "accountAnonymous": {
+    "message": "Anonymous account"
+  },
+  "accountAnonymousFree": {
+    "message": "Anonymous account (Free)"
+  },
+  "uiLanguageLabel": {
+    "message": "Interface language"
+  },
+  "uiLanguageAuto": {
+    "message": "Auto (browser)"
+  },
+  "summaryLanguageLabel": {
+    "message": "Summary language"
+  },
+  "summaryLanguageFollow": {
+    "message": "Same as interface ($name$)",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "summaryLanguageHint": {
+    "message": "Only new summaries use this language; existing summaries are not translated."
+  },
+  "summaryPreloadWarning": {
+    "message": "Auto-load is on: after changing the language, the next Hacker News page will preload up to 15 stories in the new language (up to 15 quota uses)."
+  },
+  "uiLanguageChangedHint": {
+    "message": "Interface language updated. Already-open Hacker News pages need a refresh."
+  },
+
+  "quotaLabel": {
+    "message": "Monthly quota"
+  },
+  "quotaUsage": {
+    "message": "$used$/$limit$ used",
+    "placeholders": {
+      "used": { "content": "$1" },
+      "limit": { "content": "$2" }
+    }
+  },
+  "quotaReset": {
+    "message": " · resets $date$",
+    "placeholders": {
+      "date": { "content": "$1" }
+    }
+  },
+  "quotaExhaustedTitle": {
+    "message": "Free quota used up"
+  },
+  "quotaExhaustedDesc": {
+    "message": "Resets on the 1st of next month. Cached summaries stay available."
+  },
+
+  "myDataLabel": {
+    "message": "My data"
+  },
+  "exportData": {
+    "message": "Export my data"
+  },
+  "deleteCloudData": {
+    "message": "Delete cloud data"
+  },
+  "saveSettings": {
+    "message": "Save settings"
+  },
+  "switchToLocal": {
+    "message": "Advanced: use a local server"
+  },
+  "switchToCloud": {
+    "message": "Switch back to cloud"
+  },
+
+  "statsTitle": {
+    "message": "Your Stats"
+  },
+  "recTitle": {
+    "message": "Recommendations"
+  },
+  "statsTotalSignals": {
+    "message": "Total signals:"
+  },
+
+  "serverUrlLabel": {
+    "message": "Server URL"
+  },
+  "localNotDetected": {
+    "message": "Local server not detected."
+  },
+  "localDisconnected": {
+    "message": "Local server not detected"
+  },
+  "downloadServer": {
+    "message": "Download the HN Reader server"
+  },
+
+  "statusSaved": {
+    "message": "Saved"
+  },
+  "statusSaving": {
+    "message": "Saving..."
+  },
+  "statusExported": {
+    "message": "Exported"
+  },
+  "errInvalidUrl": {
+    "message": "Invalid server address"
+  },
+  "errExportFailed": {
+    "message": "Export failed: $error$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "unknownError": {
+    "message": "Unknown error"
+  },
+  "confirmDeleteAccount": {
+    "message": "Delete the cloud account and all reading data? This cannot be undone."
+  },
+  "errDeleteFailed": {
+    "message": "Delete failed: $error$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cloudDataDeleted": {
+    "message": "Cloud data deleted"
+  },
+  "accountDeletedHint": {
+    "message": "Deleted. A new anonymous account will be created next time."
+  },
+
+  "cloudConnected": {
+    "message": "Cloud service connected"
+  },
+  "localConnected": {
+    "message": "Local server connected"
+  },
+  "connectSuccess": {
+    "message": "Connected"
+  },
+  "cloudDisconnected": {
+    "message": "Cloud service not connected"
+  },
+  "errCannotConnect": {
+    "message": "Cannot connect"
+  },
+  "errNoResponse": {
+    "message": "No response"
+  },
+
+  "welcomeTitle": {
+    "message": "Welcome to HN Reader"
+  },
+  "welcomeSubtitle": {
+    "message": "HN Reader is your AI reading assistant, helping you quickly decide which Hacker News stories are worth reading."
+  },
+  "welcomeFeature1": {
+    "message": "Click <strong>[summary]</strong> next to a story to see the AI summary"
+  },
+  "welcomeFeature2": {
+    "message": "Orange borders mark stories you may be interested in"
+  },
+  "welcomeFeature3": {
+    "message": "Free monthly quota, no setup, works right after install"
+  },
+  "preparing": {
+    "message": "Preparing..."
+  },
+  "retry": {
+    "message": "Retry"
+  },
+  "welcomePrivacy": {
+    "message": "☁️ The cloud service stores your reading signals and summary records to power personalized recommendations. Full article text is not stored long-term. Your data is never sold or used for model training. You can export or delete your cloud data from the extension popup at any time. See the <a href=\"https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md\" target=\"_blank\" rel=\"noopener\">privacy policy</a> for details."
+  },
+
+  "goToHackerNews": {
+    "message": "Try it on Hacker News"
+  },
+  "ready": {
+    "message": "Ready"
+  },
+  "errAutoAccount": {
+    "message": "Could not create an account automatically. Check your network and retry."
+  },
+  "preparingCloud": {
+    "message": "Setting up the cloud service for you..."
+  },
+  "retrying": {
+    "message": "Retrying..."
+  },
+  "errRetry": {
+    "message": "Retry failed. Check your network."
+  },
+
+  "btnSummary": {
+    "message": "[summary]"
+  },
+  "btnSummarize": {
+    "message": "[summarize]"
+  },
+  "btnLoading": {
+    "message": "[loading...]"
+  },
+  "btnClose": {
+    "message": "[close]"
+  },
+  "btnQuotaExceeded": {
+    "message": "[quota exceeded]"
+  },
+  "btnRateLimited": {
+    "message": "[try later]"
+  },
+  "btnServiceBusy": {
+    "message": "[service busy]"
+  },
+  "btnFailed": {
+    "message": "[failed]"
+  },
+
+  "quotaExceededTooltip": {
+    "message": "Free quota used up; resets on the 1st of next month"
+  },
+  "quotaExceededBtnTitle": {
+    "message": "Click to see quota details"
+  },
+  "quotaTipTitle": {
+    "message": "Free quota used up"
+  },
+  "quotaTipBody": {
+    "message": "Resets on the 1st of next month. Cached summaries stay available."
+  },
+  "rateLimitedTooltip": {
+    "message": "Too many requests. Try again in a moment."
+  },
+  "serviceBusyTooltip": {
+    "message": "Service is busy. Try again in a moment."
+  },
+  "rateLimitedNoticeTitle": {
+    "message": "Too many requests"
+  },
+  "rateLimitedNoticeBody": {
+    "message": "Wait a few seconds and try again."
+  },
+  "gotIt": {
+    "message": "Got it"
+  },
+
+  "preloaded": {
+    "message": "Preloaded"
+  },
+  "preloadQuotaExceeded": {
+    "message": "Quota used up - not preloaded"
+  },
+  "preloadFailed": {
+    "message": "Preload failed - click to load"
+  },
+  "summaryOpened": {
+    "message": "Summary open"
+  },
+  "summaryFailed": {
+    "message": "Summary failed: $error$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "untitled": {
+    "message": "Untitled"
+  },
+  "noSummary": {
+    "message": "No summary available."
+  },
+  "closeCard": {
+    "message": "Close"
+  },
+
+  "onboardingTitle": {
+    "message": "👋 HN Reader is ready"
+  },
+  "onboardingItem1": {
+    "message": "Click <strong>[summary]</strong> to see the AI summary"
+  },
+  "onboardingItem2": {
+    "message": "Orange border = a story you may like"
+  },
+  "onboardingItem3": {
+    "message": "Open the extension icon for recommendations and stats"
+  },
+  "onboardingDismiss": {
+    "message": "Got it, don't show again"
+  },
+
+  "errCloudNotReady": {
+    "message": "Cloud account not ready. Please check your network and try again."
+  }
+}
