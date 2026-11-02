@@ -116,8 +116,10 @@ jobs:
           set -euo pipefail
           H="${{ vars.H43_HOST }}"
           ssh $SSH_OPTS "$H" "install -d -m 755 '$STAGING_DIR'"
-          scp $SSH_OPTS "${RUNNER_TEMP}/hn-reader-cloud" "$H:$STAGING_DIR/hn-reader-cloud.new"
-          scp $SSH_OPTS deploy/h43-test/docker-compose.yml \
+          # -C: the binary is ~26 MB and the runner sits outside China; compressed
+          # ssh turns that into ~8 MB and roughly a third of the wall time.
+          scp -C $SSH_OPTS "${RUNNER_TEMP}/hn-reader-cloud" "$H:$STAGING_DIR/hn-reader-cloud.new"
+          scp -C $SSH_OPTS deploy/h43-test/docker-compose.yml \
                          deploy/h43-test/Caddyfile.site \
                          deploy/h43-test/deploy.sh \
                          deploy/h43-test/.dockerignore \
