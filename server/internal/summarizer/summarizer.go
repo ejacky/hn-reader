@@ -28,6 +28,11 @@ var (
 	ErrProvider = errors.New("LLM provider error")
 )
 
+// maxOutputTokenCeiling bounds how far an empty-content retry may grow the
+// output budget. Reasoning models can consume the whole budget before emitting
+// any content, so the budget doubles from the configured value up to this cap.
+const maxOutputTokenCeiling = 8000
+
 // Config holds LLM connection parameters and cost guards.
 type Config struct {
 	BaseURL         string
@@ -37,6 +42,9 @@ type Config struct {
 	DailyBudget     int
 	Timeout         time.Duration
 	MaxOutputTokens int
+	// ReasoningEffort is forwarded as reasoning_effort when non-empty. Empty
+	// leaves the provider default (reasoning on for reasoning models).
+	ReasoningEffort string
 }
 
 type Summarizer struct {
@@ -186,37 +194,50 @@ func (s *Summarizer) callLLM(ctx context.Context, prompt string) (string, error)
 	if s.config.APIKey == "" {
 		return "", fmt.Errorf("%w: API key not configured", ErrAuth)
 	}
-	if err := s.acquireDaily(); err != nil {
-		return "", err
+
+	// Bound the whole retry ladder: one article must not hold a concurrency slot
+	// for minutes while it walks every rung.
+	if s.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 3*s.config.Timeout)
+		defer cancel()
 	}
 
-	select {
-	case s.sem <- struct{}{}:
-		defer func() { <-s.sem }()
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case <-time.After(30 * time.Second):
-		return "", ErrBusy
-	}
-
-	reqBody := map[string]interface{}{
-		"model": s.config.Model,
-		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
-		},
-		"temperature": 0.5,
-	}
-	if s.config.MaxOutputTokens > 0 {
-		reqBody["max_tokens"] = s.config.MaxOutputTokens
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", err
-	}
-
+	maxTokens := s.config.MaxOutputTokens
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	transientRetries := 0
+	// Empty non-length responses (content filter, refusal, provider quirk) get
+	// exactly one exploratory retry at the same budget; only finish_reason
+	// "length" grows the budget across the ladder.
+	blankRetries := 0
+	const maxRequests = 6
+	for request := 0; request < maxRequests; request++ {
+		// Each attempt is a real, billed provider call, so each one consumes a
+		// unit of the daily budget. Charge before waiting for a slot so an
+		// exhausted budget fails fast instead of queueing.
+		if err := s.acquireDaily(); err != nil {
+			return "", err
+		}
+		reqBody := map[string]interface{}{
+			"model": s.config.Model,
+			"messages": []map[string]string{
+				{"role": "user", "content": prompt},
+			},
+			"temperature": 0.5,
+		}
+		if maxTokens > 0 {
+			reqBody["max_tokens"] = maxTokens
+		}
+		// "off" is the escape hatch that omits the field entirely, for models
+		// and gateways that reject it.
+		if effort := s.config.ReasoningEffort; effort != "" && effort != "off" {
+			reqBody["reasoning_effort"] = effort
+		}
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			return "", err
+		}
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.config.BaseURL+"/chat/completions", bytes.NewReader(jsonBody))
 		if err != nil {
 			return "", err
@@ -226,7 +247,7 @@ func (s *Summarizer) callLLM(ctx context.Context, prompt string) (string, error)
 		req.Header.Set("User-Agent", "hn-reader/1.0")
 		req.Header.Set("x-opencode-session", s.sessionID)
 
-		resp, err := s.client.Do(req)
+		resp, err := s.send(ctx, req)
 		if err != nil {
 			if ctx.Err() != nil {
 				return "", ctx.Err()
@@ -244,15 +265,17 @@ func (s *Summarizer) callLLM(ctx context.Context, prompt string) (string, error)
 		}
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
 			lastErr = fmt.Errorf("%w: HTTP %d", ErrProvider, resp.StatusCode)
-			if attempt == 0 {
-				select {
-				case <-ctx.Done():
-					return "", ctx.Err()
-				case <-time.After(500 * time.Millisecond):
-				}
-				continue
+			transientRetries++
+			if transientRetries > 1 {
+				return "", lastErr
 			}
-			return "", lastErr
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+			// A transient failure must not consume a rung of the budget ladder.
+			continue
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return "", fmt.Errorf("%w: HTTP %d: %s", ErrProvider, resp.StatusCode, strings.TrimSpace(string(body)))
@@ -260,8 +283,10 @@ func (s *Summarizer) callLLM(ctx context.Context, prompt string) (string, error)
 
 		var result struct {
 			Choices []struct {
-				Message struct {
-					Content string `json:"content"`
+				FinishReason string `json:"finish_reason"`
+				Message      struct {
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
 				} `json:"message"`
 			} `json:"choices"`
 			Error *struct {
@@ -277,12 +302,76 @@ func (s *Summarizer) callLLM(ctx context.Context, prompt string) (string, error)
 		if len(result.Choices) == 0 {
 			return "", fmt.Errorf("%w: no response choices", ErrProvider)
 		}
-		return result.Choices[0].Message.Content, nil
+		choice := result.Choices[0]
+		if strings.TrimSpace(choice.Message.Content) != "" {
+			return choice.Message.Content, nil
+		}
+		// A reasoning model can spend the whole output budget on reasoning and
+		// return an empty message with finish_reason "length". Grow the budget
+		// and retry instead of failing the article outright.
+		lastErr = fmt.Errorf("%w: empty content (finish_reason=%s, reasoning_chars=%d)", ErrProvider, choice.FinishReason, len(choice.Message.ReasoningContent))
+		if choice.FinishReason == "length" {
+			if maxTokens <= 0 || maxTokens >= maxOutputTokenCeiling {
+				return "", lastErr
+			}
+			if s.budgetTooLowForRetry() {
+				return "", lastErr
+			}
+			maxTokens *= 2
+			if maxTokens > maxOutputTokenCeiling {
+				maxTokens = maxOutputTokenCeiling
+			}
+			continue
+		}
+		// Any other empty response gets exactly one exploratory retry at the
+		// same budget, so a content filter cannot burn the whole ladder.
+		if blankRetries > 0 || s.budgetTooLowForRetry() {
+			return "", lastErr
+		}
+		blankRetries++
 	}
 	if lastErr == nil {
 		lastErr = ErrProvider
 	}
 	return "", lastErr
+}
+
+// retryBudgetFloor keeps enough of the daily allowance for other requests:
+// below it, a retry ladder is abandoned instead of burning the rest of the day.
+const retryBudgetFloor = 20
+
+// send acquires one concurrency slot for a single provider call. The slot is
+// released as soon as the call returns, so the retry ladder never holds it
+// between rungs.
+func (s *Summarizer) send(ctx context.Context, req *http.Request) (*http.Response, error) {
+	select {
+	case s.sem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(30 * time.Second):
+		return nil, ErrBusy
+	}
+	defer func() { <-s.sem }()
+	return s.client.Do(req)
+}
+
+// budgetTooLowForRetry reports whether the daily allowance is too small to
+// justify another attempt. Returns false for an unlimited budget.
+func (s *Summarizer) budgetTooLowForRetry() bool {
+	remaining := s.dailyRemaining()
+	return remaining >= 0 && remaining < retryBudgetFloor
+}
+
+func (s *Summarizer) dailyRemaining() int {
+	if s.config.DailyBudget <= 0 {
+		return -1
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.day != s.now().UTC().Format("2006-01-02") {
+		return s.config.DailyBudget
+	}
+	return s.config.DailyBudget - s.used
 }
 
 func parseResponse(text string) (string, []string) {

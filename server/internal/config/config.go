@@ -24,6 +24,11 @@ type Config struct {
 	LLMMaxConcurrency     int
 	LLMTimeout            time.Duration
 	LLMMaxOutputTokens    int
+	// LLMReasoningEffort is forwarded as reasoning_effort when non-empty.
+	// Summary work does not need chain-of-thought, so "none" is the recommended
+	// setting for reasoning models: it removes the empty-content failure mode
+	// and cuts output cost.
+	LLMReasoningEffort    string
 	FreeQuotaLimit        int
 	MaxBodyBytes          int64
 	SignupRatePerHour     int

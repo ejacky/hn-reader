@@ -82,7 +82,8 @@ Key values:
 | `LLM_DAILY_BUDGET` | `2000` | Process-wide daily LLM call cap |
 | `LLM_MAX_CONCURRENCY` | `4` | Concurrent LLM calls |
 | `LLM_TIMEOUT_SECONDS` | `90` | Per-call timeout |
-| `LLM_MAX_OUTPUT_TOKENS` | `600` | Output cost cap |
+| `LLM_MAX_OUTPUT_TOKENS` | `1500` | Output cost cap; raised automatically on `finish_reason=length` |
+| `LLM_REASONING_EFFORT` | `none` | Passed as `reasoning_effort`; `none` disables chain-of-thought for summaries |
 | `SIGNUP_RATE_PER_HOUR` / `_PER_DAY` | `5` / `20` | Anonymous signup per IP |
 | `SUMMARIZE_RATE_PER_MIN` | `20` | Summary requests per user |
 | `PRELOAD_MAX_PER_REQUEST` | `20` | Preload batch cap |

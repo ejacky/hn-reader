@@ -61,6 +61,11 @@ async function apiRequest(method, path, body = null, retried = false) {
   if (body) {
     options.body = JSON.stringify(body);
   }
+  // A hung connection must fail fast: callers rely on this promise settling to
+  // report per-article preload status instead of leaving the UI in limbo.
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+    options.signal = AbortSignal.timeout(20000);
+  }
   const resp = await fetch(url, options);
   // Token 失效（服务端重建/换环境）时清掉旧 token，重新建号并重试一次。
   if (resp.status === 401 && !retried && cfg.mode === 'cloud') {

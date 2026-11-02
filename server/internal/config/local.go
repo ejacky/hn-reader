@@ -23,6 +23,9 @@ func LoadLocal() *Config {
 		LLMBaseURL:   getEnv("LLM_BASE_URL", "https://api.openai.com/v1"),
 		LLMAPIKey:    getEnv("LLM_API_KEY", ""),
 		LLMModel:     getEnv("LLM_MODEL", "gpt-4o-mini"),
+		// Local mode leaves this empty by default: the target model may not be a
+		// reasoning model, and some providers reject the parameter outright.
+		LLMReasoningEffort: getEnv("LLM_REASONING_EFFORT", ""),
 		DatabasePath: getEnv("DB_PATH", dbDefault),
 	}
 
