@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Version is set at build time via -ldflags "-X main.Version=1.3.0".
+// Version is set at build time via -ldflags "-X main.Version=1.3.1".
 var Version = "1.0.0"
 
 func main() {

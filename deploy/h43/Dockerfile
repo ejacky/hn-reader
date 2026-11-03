@@ -8,7 +8,7 @@
 #     -ldflags "-s -w" -o hn-reader-cloud ./cmd/hn-reader-cloud
 #
 # Then on h43:
-#   cd /root/hn-reader && docker build -t hn-reader-cloud:1.3.0 .
+#   cd /root/hn-reader && docker build -t hn-reader-cloud:1.3.1 .
 FROM alpine:3.20
 
 RUN apk add --no-cache ca-certificates \

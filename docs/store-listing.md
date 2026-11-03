@@ -10,7 +10,7 @@
 | 字段 | 内容 |
 |------|------|
 | **名称** | HN Reader - AI Reading Assistant |
-| **版本** | 1.3.0（与 `manifest.json` 保持一致） |
+| **版本** | 1.3.1（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
 | **默认语言** | English |
 
@@ -142,20 +142,20 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 - 界面默认跟随浏览器语言（`_locales`，`en` 为默认目录、`zh_CN` 保留），设置里可显式切换；
 - 摘要语言默认跟随界面语言；
 - 预加载状态显式化，失败条目显示原因；
-- 权限与数据用途披露**无变化**；
-- 发版材料见 [`releases/v1.3.0/`](releases/v1.3.0/README.md)。
+- 权限与数据用途披露**无变化**（提交版本改为 1.3.1：移除仅供本机联调的 staging 域名权限）；
+- 发版材料见 [`releases/v1.3.1/`](releases/v1.3.1/README.md)。
 
 ---
 
 ## 上架检查清单
 
-- [x] `manifest.json` 版本号已更新（`1.3.0`）
+- [x] `manifest.json` 版本号已更新（`1.3.1`）
 - [x] 云 API 域名权限已声明并说明
 - [x] 隐私政策已覆盖云模式，链接路径正确
 - [x] 数据用途披露已填写
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
-- [ ] 截图已更新（`releases/v1.3.0/screenshots/`，见该目录 README 的「提交前建议重拍」）
+- [ ] 截图已更新（`releases/v1.3.1/screenshots/`，见该目录 README 的「提交前建议重拍」）
 - [ ] 商店图标已打包（`extension/icons/` 16×16, 48×48, 128×128）
 - [ ] 支持邮箱已替换为可用地址
 - [ ] 开发者/公司名已填写

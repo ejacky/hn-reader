@@ -1,3 +1,30 @@
+# HN Reader v1.3.1 — Store package cleanup
+
+## Release Title
+
+HN Reader v1.3.1 — permission cleanup for the store package
+
+## Release Notes
+
+### Extension
+
+- The published package no longer declares `https://test.hn-reader.whoareyou.ren/*`.
+  That host existed only for local staging work, but Chrome Web Store would have
+  shown it as a new host permission on the listing. The extension now declares
+  exactly what it uses for users: Hacker News pages and the cloud API.
+- Version `1.3.1`. No other functional change; everything in 1.3.0 still applies.
+
+### Cloud service
+
+- Rebuilt and redeployed at `1.3.1` so `/health` matches the release tag. Behaviour
+  is identical to 1.3.0.
+
+### Upgrade notes
+
+- Extension `1.3.1`; cloud `/health` reports `1.3.1`.
+
+---
+
 # HN Reader v1.3.0 — English UI & Reliable Preloading
 
 ## Release Title

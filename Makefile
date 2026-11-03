@@ -1,4 +1,4 @@
-VERSION = 1.3.0
+VERSION = 1.3.1
 
 .PHONY: build run dev extension i18n-check clean install-service uninstall-service start-service release
 
