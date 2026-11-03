@@ -1,0 +1,137 @@
+# 每个 v* tag 自动产出发布物：Windows 安装包 + 扩展包 + 校验和。
+#
+# 为什么是 windows-latest：安装包本来就是 Windows 产物，installer/setup.nsi 里
+# File "..\server\hn-reader.exe" 用的是反斜杠路径，在 Windows 上不需要改写脚本；
+# 同时也顺带验证了"把 exe 跑起来、/health 报的版本等于 tag"这件事。
+#
+# 为什么 tag 只出制品：生产部署是另一条人工触发的流水线（见 #12），tag 是制品
+# 指针而不是上线开关。
+name: Release artifacts
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要重新打包并上传的 tag（例如 v1.3.0）'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-artifacts-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: server/go.sum
+
+      - name: Derive version from tag
+        shell: pwsh
+        run: |
+          $v = $env:TAG -replace '^v', ''
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "tag '$env:TAG' is not vX.Y.Z" }
+          "VERSION=$v" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "version: $v"
+
+      - name: Build local server (windows/amd64)
+        working-directory: server
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = '0'
+          $env:GOOS = 'windows'
+          $env:GOARCH = 'amd64'
+          go build -trimpath -ldflags "-s -w -X main.Version=$env:VERSION" -o hn-reader.exe ./cmd/hn-reader
+          Get-Item hn-reader.exe | Select-Object Name, Length
+
+      # 打包前先证明这个二进制真的报 tag 的版本，避免把旧包发出去。
+      - name: Verify the binary reports the tag version
+        working-directory: server
+        shell: pwsh
+        run: |
+          $env:PORT = '18080'
+          $p = Start-Process -FilePath (Join-Path $PWD 'hn-reader.exe') -PassThru -WindowStyle Hidden
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Milliseconds 500
+            try {
+              $h = Invoke-RestMethod 'http://127.0.0.1:18080/health' -TimeoutSec 2
+              if ($h.version -eq $env:VERSION) { $ok = $true; break }
+            } catch { }
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "hn-reader.exe did not report version $env:VERSION" }
+          Write-Host "OK: /health reports $env:VERSION"
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress | Out-Null
+          $candidates = @(
+            'C:\Program Files (x86)\NSIS\makensis.exe',
+            'C:\Program Files\NSIS\makensis.exe'
+          ) + @((Get-Command makensis.exe -ErrorAction SilentlyContinue).Source)
+          $nsis = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $nsis) { throw 'makensis not found after choco install' }
+          "MAKENSIS=$nsis" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "makensis: $nsis"
+
+      # 用 cmd /c 传入，避免 PowerShell 把 /DPRODUCT_VERSION=1.3.0 拆成两个参数
+      - name: Build installer
+        working-directory: installer
+        shell: pwsh
+        run: |
+          cmd /c "`"$env:MAKENSIS`" -INPUTCHARSET UTF8 /DPRODUCT_VERSION=$env:VERSION setup.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed with $LASTEXITCODE" }
+          $exe = "HNReader-Setup-$env:VERSION.exe"
+          if (-not (Test-Path $exe)) { throw "$exe was not produced" }
+          Get-Item $exe | Select-Object Name, Length
+
+      - name: Package extension
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'ext'
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item extension $stage -Recurse
+          Remove-Item (Join-Path $stage 'extension.zip') -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $stage, (Join-Path $PWD 'dist/extension.zip'))
+          Get-Item dist/extension.zip | Select-Object Name, Length
+
+      - name: Write SHA256SUMS
+        shell: pwsh
+        run: |
+          $files = @("installer/HNReader-Setup-$env:VERSION.exe", 'dist/extension.zip')
+          $lines = foreach ($f in $files) {
+            $h = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower()
+            "$h  $(Split-Path $f -Leaf)"
+          }
+          $lines | Out-File -Encoding ascii dist/SHA256SUMS
+          Get-Content dist/SHA256SUMS
+
+      - name: Upload to the release
+        shell: pwsh
+        run: |
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:TAG --title $env:TAG --generate-notes
+          }
+          gh release upload $env:TAG "installer/HNReader-Setup-$env:VERSION.exe" dist/extension.zip dist/SHA256SUMS --clobber
+          gh release view $env:TAG --json assets --jq '.assets[] | "\(.name) \(.size)"'
