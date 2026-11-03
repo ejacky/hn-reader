@@ -19,9 +19,17 @@
 
 ## 商店描述
 
-### Short description
+### Summary（摘要）
 
-AI summaries and personalized highlights for Hacker News. Free monthly quota, no setup required.
+> **摘要不是在这里改的。**商店的摘要由软件包自动读取：`extension/_locales/<locale>/messages.json` 的
+> `extDescription`（对应 `manifest.json` 的 `description`），后台只读。改摘要 = 改包 + 发新版本。
+
+| 语言区域 | 软件包中的摘要 | 字符数 |
+|---|---|---|
+| 默认（English） | AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup. | 114 |
+| 中文（中国） | （与默认相同，尚未翻译） | 114 |
+
+上限 132 字符。
 
 ### Detailed description
 
@@ -47,10 +55,6 @@ HN Reader is an AI reading assistant that adds one-click summaries and personali
 **Privacy:**
 
 Cloud mode stores anonymous reading signals and generated summaries on the service to provide recommendations and quota enforcement. Article/comment text is sent to an LLM provider only to generate the requested summary. We do not sell data or use it for advertising. Local mode keeps reading data on your machine. See the privacy policy for details.
-
-### Short description (zh_CN)
-
-为 Hacker News 提供 AI 摘要与个性化高亮，每月免费额度，无需任何配置。
 
 ### Detailed description (zh_CN)
 

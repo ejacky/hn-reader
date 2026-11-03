@@ -86,10 +86,17 @@ const secs = sections(listing);
 const pick = (h2part, h3part = '') =>
   secs.find(s => s.h2.includes(h2part) && (h3part ? s.h3.includes(h3part) : !s.h3));
 
-const summary = plain((pick('商店描述', 'Short description') || {}).body || '');
+// 摘要不是文档里写的，而是软件包里的 extDescription（商店后台只读）
+const locales = JSON.parse(
+  readFileSync(resolve(repo, 'extension/_locales/en/messages.json'), 'utf8'),
+);
+const localesZh = JSON.parse(
+  readFileSync(resolve(repo, 'extension/_locales/zh_CN/messages.json'), 'utf8'),
+);
+const summary = locales.extDescription.message;
+const summaryZh = localesZh.extDescription.message;
+
 const detailed = plain((pick('商店描述', 'Detailed description') || {}).body || '');
-// 非默认语言条目（商店里会单独出现，必须与默认语言逐条对应）
-const summaryZh = plain((pick('商店描述', 'Short description (zh_CN)') || {}).body || '');
 const detailedZh = plain((pick('商店描述', 'Detailed description (zh_CN)') || {}).body || '');
 const singlePurpose = plain((pick('单一用途说明') || {}).body || '');
 const remoteCode = plain((pick('远程代码声明') || {}).body || '');
@@ -106,9 +113,9 @@ const block = (title, note, text) =>
   [bar, title, note ? `(${note})` : '', bar, text, ''].join('\n');
 
 const out = [
-  block('SHORT DESCRIPTION', `${[...summary].length} / 132 characters`, summary),
+  block('SUMMARY (from the package, read-only)', `${[...summary].length} / 132 characters`, summary),
   block('DETAILED DESCRIPTION', 'plain text: markdown 在这里会原样显示', detailed),
-  summaryZh ? block('SHORT DESCRIPTION (zh_CN)', `${[...summaryZh].length} / 132 characters`, summaryZh) : '',
+  summaryZh ? block('SUMMARY (zh_CN, from the package)', `${[...summaryZh].length} / 132 characters`, summaryZh) : '',
   detailedZh ? block('DETAILED DESCRIPTION (zh_CN)', '与默认语言逐条对应，不新增任何宣称', detailedZh) : '',
   block('SINGLE PURPOSE', '', singlePurpose),
   ...perms.map(p => block(`PERMISSION JUSTIFICATION - ${p.name}`, '', p.text)),

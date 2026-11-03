@@ -59,6 +59,9 @@
 
 处理：把中文条目的摘要/详细描述换成 `store-copy.txt` 里的 `(zh_CN)` 两段。
 
+摘要字段是从软件包自动读取的（`_locales/<locale>/messages.json` 的 `extDescription`），后台**不能编辑**；
+本次提交里 `zh_CN` 那份仍是英文原文，所以中文列表的摘要会是英文，详情描述是中文。
+
 长期（计划 1.3.2）：`_locales/zh_CN/messages.json` 的 `extName`/`extDescription` 仍是英文原文；
 manifest 的 `extDescription`（114 字符）与商店 summary（96 字符）也不是同一句。这两处要对齐，
 否则下次提交还会被同样的理由挑出来。

@@ -1,8 +1,8 @@
 ======================================================================
-SHORT DESCRIPTION
-(96 / 132 characters)
+SUMMARY (from the package, read-only)
+(114 / 132 characters)
 ======================================================================
-AI summaries and personalized highlights for Hacker News. Free monthly quota, no setup required.
+AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup.
 
 ======================================================================
 DETAILED DESCRIPTION
@@ -32,10 +32,10 @@ Privacy:
 Cloud mode stores anonymous reading signals and generated summaries on the service to provide recommendations and quota enforcement. Article/comment text is sent to an LLM provider only to generate the requested summary. We do not sell data or use it for advertising. Local mode keeps reading data on your machine. See the privacy policy for details.
 
 ======================================================================
-SHORT DESCRIPTION (zh_CN)
-(43 / 132 characters)
+SUMMARY (zh_CN, from the package)
+(114 / 132 characters)
 ======================================================================
-为 Hacker News 提供 AI 摘要与个性化高亮，每月免费额度，无需任何配置。
+AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup.
 
 ======================================================================
 DETAILED DESCRIPTION (zh_CN)
