@@ -11,7 +11,7 @@
 | 字段 | 内容 |
 |------|------|
 | **名称** | HN Reader - AI Reading Assistant |
-| **版本** | 1.3.1（与 `manifest.json` 保持一致） |
+| **版本** | 1.3.2（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
 | **默认语言** | English |
 
@@ -167,6 +167,12 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 - 移除“必须自建本地服务”的描述，保留本地模式为可选项；
 - 移除 Pro 升级入口（首发免费版，支付接入后再恢复）。
 
+### 2026-11-03 — 1.3.2 元数据对齐
+
+- 版本提升至 1.3.2（功能与 1.3.1 相同）；
+- 包内 `extDescription` 换成当前产品说明，并补上中文翻译——商店的标题与摘要由软件包自动读取，此前 zh_CN 用的是英文原文，触发「元数据不匹配」；
+- 1.3.1 的提交因此撤下，改以 1.3.2 重新提交。
+
 ### 2026-11-03 — 1.3.0 界面英文化
 
 - 版本提升至 1.3.0；
@@ -180,7 +186,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 上架检查清单
 
-- [x] `manifest.json` 版本号已更新（`1.3.1`）
+- [x] `manifest.json` 版本号已更新（`1.3.2`）
 - [x] 云 API 域名权限已声明并说明
 - [x] 隐私政策已覆盖云模式，链接路径正确
 - [x] 数据用途披露已填写

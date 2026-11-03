@@ -3,7 +3,7 @@
     "message": "HN Reader - AI Reading Assistant"
   },
   "extDescription": {
-    "message": "AI-powered Hacker News reading assistant with personalized recommendations. Now with cloud mode for instant setup."
+    "message": "AI summaries and personalized highlights for Hacker News. Free monthly quota, no setup required."
   },
 
   "connChecking": {

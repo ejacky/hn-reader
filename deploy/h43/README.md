@@ -26,7 +26,7 @@ hn-reader-server (Go, -tags cloud) ── hn-reader-db (PostgreSQL 16, no public
 
 ## Current deployment
 
-- Image `hn-reader-cloud:1.3.1`; `/health` reports `1.3.1`.
+- Image `hn-reader-cloud:1.3.2`; `/health` reports `1.3.2`.
 - PostgreSQL 16 pinned by digest; data in volume `hn-reader_pgdata`.
 - Site installed as `/root/edge/sites/hn-reader.caddy` from this directory's
   `Caddyfile.site`, with `request_body` limit and `header_up` overwrites for

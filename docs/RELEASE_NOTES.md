@@ -1,3 +1,32 @@
+# HN Reader v1.3.2 — store metadata alignment
+
+## Release Title
+
+HN Reader v1.3.2 — description and locale metadata aligned with the package
+
+## Release Notes
+
+### Extension
+
+- The **package description** — which Chrome Web Store reads as the listing summary and
+  the browser shows on the extensions page — now says what the product is today:
+  `AI summaries and personalized highlights for Hacker News. Free monthly quota, no setup required.`. The previous text still advertised cloud mode as a new thing and
+  never mentioned the free monthly quota.
+- `_locales/zh_CN` now carries a Chinese description instead of a copy of the English
+  one, so the 中文（中国）listing no longer pairs an English summary with a Chinese
+  description. That combination is what triggered "metadata mismatch" on 1.3.1.
+- No functional change: the interface and behaviour are identical to 1.3.1.
+
+### Cloud service
+
+- Rebuilt at `1.3.2` so `/health` matches the tag. Behaviour identical to 1.3.1.
+
+### Upgrade notes
+
+- Extension `1.3.2`; cloud `/health` reports `1.3.2`.
+
+---
+
 # HN Reader v1.3.1 — Store package cleanup
 
 ## Release Title
