@@ -13,6 +13,7 @@
 | 权限 | ✅ 只剩 `news.ycombinator.com` + `hn-reader.whoareyou.ren` | `extension/manifest.json` |
 | 商店截图 | ⚠️ **待重拍**（见下） | `screenshots/jt1.png`、`jt2.png`、`jt3.png` |
 | 新版本说明 | ✅ | [`whats-new.md`](whats-new.md) |
+| 纯文本上架稿 | ✅ | [`store-copy.txt`](store-copy.txt)（`node scripts/store-copy.mjs docs/releases/v1.3.1` 生成） |
 | 商店文案 | ✅ | [`../../store-listing.md`](../../store-listing.md) |
 | 服务端 | ✅ `1.3.1`（与 1.3.0 行为一致，只同步版本号） | `/health` |
 

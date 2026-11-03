@@ -1,6 +1,6 @@
 VERSION = 1.3.1
 
-.PHONY: build run dev extension i18n-check clean install-service uninstall-service start-service release
+.PHONY: build run dev extension i18n-check store-copy clean install-service uninstall-service start-service release
 
 build:
 	cd server && go build -ldflags "-X main.Version=$(VERSION)" -o hn-reader.exe ./cmd/hn-reader
@@ -16,6 +16,10 @@ extension:
 
 i18n-check:
 	node scripts/check-i18n.mjs
+
+# 生成可直接粘贴到 Chrome Web Store 后台的纯文本（版本说明取自该目录的 whats-new.md）
+store-copy:
+	node scripts/store-copy.mjs docs/releases/v$(VERSION)
 
 clean:
 	cd server && del hn-reader.exe hn-reader.db

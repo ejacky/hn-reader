@@ -2,6 +2,7 @@
 
 > Chrome Web Store / Edge Add-ons submission text. Keep in sync with `manifest.json` and `PRIVACY.md`.
 > 每次发版的材料（安装包、截图、新版本说明）在 [`releases/`](releases/README.md)，一次发版一个目录。
+> 这里写的是 markdown 草稿；**商店后台不接受 markdown**，粘贴用 `node scripts/store-copy.mjs docs/releases/v<版本>` 生成的纯文本。
 
 ---
 

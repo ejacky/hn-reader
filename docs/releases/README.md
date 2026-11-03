@@ -22,6 +22,7 @@ docs/releases/
 | 安装包 | GitHub Release 附件 `HNReader-extension-<版本>.zip` | 由 `release-artifacts` 工作流按 tag 从 `extension/` 打包；**不进仓库**，**不带顶层目录**，`manifest.json` 在根 |
 | 商店截图 | `docs/releases/v<ver>/screenshots/` | 命名 `jt1/jt2/jt3`；尺寸见下表 |
 | 新版本说明 | `docs/releases/v<ver>/whats-new.md` | 商店「What's new in this version」 |
+| 纯文本上架稿 | `docs/releases/v<ver>/store-copy.txt` | `node scripts/store-copy.mjs docs/releases/v<ver>` 从 `store-listing.md` + `whats-new.md` 生成，直接粘贴 |
 | 商店文案 | `docs/store-listing.md` | 名称/简介/详细描述/权限说明/隐私披露，长期维护，就地更新 |
 | 版本号 | `extension/manifest.json` 的 `version` | 必须与 tag 一致，否则商店拒收 |
 | 发布记录 | GitHub Release 的 body | 见 `docs/RELEASE_NOTES.md` 的对应段落 |
@@ -48,6 +49,17 @@ Compress-Archive -Path extension\* -DestinationPath $env:TEMP\extension.zip -For
 ```
 
 手工包自检：`manifest.json` 在 zip 根目录、`_locales/` 与 `i18n.js` 都在、条目里没有 `extension.zip`。
+
+## 生成可粘贴的纯文本
+
+商店的描述字段不接受 markdown（星号、井号、反引号都会原样显示），所以每次发版生成一份纯文本：
+
+```powershell
+node scripts/store-copy.mjs docs/releases/v1.3.1      # 写 store-copy.txt，并检查 summary ≤ 132 字符
+node scripts/store-copy.mjs docs/releases/v1.3.1 --stdout   # 只打印
+```
+
+`store-copy.txt` 按字段分段（Summary / Detailed description / Single purpose / 权限说明 / Remote code / What's new），复制哪段贴哪段。
 
 ## 本地备份
 
