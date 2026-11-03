@@ -91,8 +91,7 @@ HN Reader v1.3.0 — English interface, i18n groundwork, and the preload fix
 
 - New staging environment `https://test.hn-reader.whoareyou.ren` on h43: its own
   database, container, volume and port, an IP allowlist, and automatic deployment
-  from GitHub Actions on pushes to `main` (every merge) and to
-  `dev` / `fix/**` / `feat/**` for pre-merge checks.
+  from GitHub Actions on pushes to `dev` / `fix/**` / `feat/**`.
 
 ### Upgrade notes
 
