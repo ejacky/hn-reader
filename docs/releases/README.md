@@ -48,6 +48,20 @@ Compress-Archive -Path extension\* -DestinationPath $env:TEMP\extension.zip -For
 ```
 
 手工包自检：`manifest.json` 在 zip 根目录、`_locales/` 与 `i18n.js` 都在、条目里没有 `extension.zip`。
+
+## 本地备份
+
+要用的时候从 Release 下，放在 `artifacts/v<版本>/`（**已 gitignore**，进不了仓库）：
+
+```powershell
+New-Item -ItemType Directory -Force artifacts\v1.3.1 | Out-Null
+gh release download v1.3.1 --pattern "HNReader-extension-1.3.1.zip" --dir artifacts\v1.3.1
+gh release download v1.3.1 --pattern "SHA256SUMS" --dir artifacts\v1.3.1
+(Get-FileHash -Algorithm SHA256 artifacts\v1.3.1\HNReader-extension-1.3.1.zip).Hash.ToLower()  # 与 SHA256SUMS 对照
+```
+
+`artifacts/` 只是本机缓存：删了随时能从 Release 再下，所以不用备份它本身，也不要提交。
+
 ## 新版本目录怎么建
 
 1. `New-Item -ItemType Directory docs\releases\v<ver>\screenshots -Force`
@@ -59,7 +73,7 @@ Compress-Archive -Path extension\* -DestinationPath $env:TEMP\extension.zip -For
 ## 检查清单（每个版本都要过）
 
 - [ ] `manifest.json` 的 `version` 与 tag 一致
-- [ ] `extension/extension.zip` 已重打，且是当前代码
+- [ ] Release 附件里的 `HNReader-extension-<版本>.zip` 已生成，`SHA256SUMS` 对得上
 - [ ] 截图是新 UI（截图会在拦截位显示旧版界面）
 - [ ] `whats-new.md` 已写，且没有承诺未实现的功能
 - [ ] `docs/store-listing.md` 的权限/隐私披露与 `manifest.json` 一致

@@ -15,6 +15,8 @@ deploy/h43-test/backups/
 
 # 扩展安装包是构建产物：不进仓库，每次发版由 release-artifacts 工作流按 tag 生成
 /extension/extension.zip
+# 本地保存的 release 备份（从 GitHub Release 下载，带校验和）
+/artifacts/
 server/cloud/.env
 server/cloud/*.exe
 server/cloud/cloud-server
