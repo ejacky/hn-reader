@@ -48,6 +48,35 @@ HN Reader is an AI reading assistant that adds one-click summaries and personali
 
 Cloud mode stores anonymous reading signals and generated summaries on the service to provide recommendations and quota enforcement. Article/comment text is sent to an LLM provider only to generate the requested summary. We do not sell data or use it for advertising. Local mode keeps reading data on your machine. See the privacy policy for details.
 
+### Short description (zh_CN)
+
+为 Hacker News 提供 AI 摘要与个性化高亮，每月免费额度，无需任何配置。
+
+### Detailed description (zh_CN)
+
+别再花时间在读不完的 Hacker News 帖子上。
+
+HN Reader 是一款 AI 阅读助手，直接在 Hacker News 页面里提供一键摘要和个性化高亮。
+
+**你会得到：**
+
+- **即时摘要** —— 点击文章或评论旁的 `[summary]`，即可得到带要点的简明摘要。
+- **个性化高亮** —— 扩展会根据你的阅读信号学习，并标记出你更可能关心的帖子。
+- **默认零配置** —— 云模式会自动创建匿名账户，不需要服务器、API Key 或任何设置。
+- **本地模式可选** —— 注重隐私的用户可以切换到本地模式，自己运行开源服务端。
+- **每月免费额度** —— 免费版每月 50 条摘要。额度用完后，已缓存的摘要仍然可以查看。
+
+**使用步骤：**
+
+1. 安装扩展。
+2. 打开 [news.ycombinator.com](https://news.ycombinator.com)。文章和评论旁会出现 `[summary]` / `[summarize]` 链接。
+3. 点击链接获取 AI 摘要；你更可能喜欢的文章会被高亮。
+4. 打开扩展弹窗，可以查看额度、统计、推荐，以及数据导出与删除的入口。
+
+**隐私：**
+
+云模式会在服务端保存匿名阅读信号与生成的摘要，用于提供推荐和执行额度限制。文章/评论文本仅在你请求摘要时发送给 LLM 提供商，用于生成该摘要。我们不会出售数据，也不会将数据用于广告。本地模式会把阅读数据保存在你自己的机器上。详见隐私政策。
+
 ---
 
 ## 单一用途说明（Single Purpose）

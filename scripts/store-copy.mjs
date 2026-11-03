@@ -88,6 +88,9 @@ const pick = (h2part, h3part = '') =>
 
 const summary = plain((pick('商店描述', 'Short description') || {}).body || '');
 const detailed = plain((pick('商店描述', 'Detailed description') || {}).body || '');
+// 非默认语言条目（商店里会单独出现，必须与默认语言逐条对应）
+const summaryZh = plain((pick('商店描述', 'Short description (zh_CN)') || {}).body || '');
+const detailedZh = plain((pick('商店描述', 'Detailed description (zh_CN)') || {}).body || '');
 const singlePurpose = plain((pick('单一用途说明') || {}).body || '');
 const remoteCode = plain((pick('远程代码声明') || {}).body || '');
 const perms = secs
@@ -105,12 +108,14 @@ const block = (title, note, text) =>
 const out = [
   block('SHORT DESCRIPTION', `${[...summary].length} / 132 characters`, summary),
   block('DETAILED DESCRIPTION', 'plain text: markdown 在这里会原样显示', detailed),
+  summaryZh ? block('SHORT DESCRIPTION (zh_CN)', `${[...summaryZh].length} / 132 characters`, summaryZh) : '',
+  detailedZh ? block('DETAILED DESCRIPTION (zh_CN)', '与默认语言逐条对应，不新增任何宣称', detailedZh) : '',
   block('SINGLE PURPOSE', '', singlePurpose),
   ...perms.map(p => block(`PERMISSION JUSTIFICATION - ${p.name}`, '', p.text)),
   block('REMOTE CODE', '后台选 No；下面这段是给审核看的说明', remoteCode),
   block("WHAT'S NEW (English)", `${[...whatsNewEn].length} characters`, whatsNewEn),
   block("WHAT'S NEW (Chinese)", `${[...whatsNewZh].length} characters`, whatsNewZh),
-].join('\n');
+].filter(Boolean).join('\n');
 
 const outPath = join(releaseDir, 'store-copy.txt');
 if (stdout) {
@@ -122,8 +127,10 @@ if (stdout) {
 }
 
 const len = [...summary].length;
-if (len > 132) {
-  console.error(`FAIL short description is ${len} chars, ${len - 132} over the 132 cap`);
+const lenZh = [...summaryZh].length;
+const over = [['en', len], ['zh_CN', lenZh]].filter(([, n]) => n > 132);
+if (over.length > 0) {
+  for (const [loc, n] of over) console.error(`FAIL ${loc} short description is ${n} chars, ${n - 132} over the 132 cap`);
   process.exit(1);
 }
-console.log(`summary: ${len}/132 characters`);
+console.log(`summary: en ${len}/132, zh_CN ${lenZh}/132 characters`);
