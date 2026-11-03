@@ -12,6 +12,9 @@ deploy/h43-test/hn-reader-cloud.new
 deploy/h43-test/hn-reader-cloud.prev
 deploy/h43-test/.last-good-image
 deploy/h43-test/backups/
+
+# 扩展安装包是构建产物：不进仓库，每次发版由 release-artifacts 工作流按 tag 生成
+/extension/extension.zip
 server/cloud/.env
 server/cloud/*.exe
 server/cloud/cloud-server

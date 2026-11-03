@@ -8,7 +8,7 @@
 
 | 材料 | 状态 | 位置 |
 |---|---|---|
-| 安装包 | ✅ | `extension/extension.zip`（发布后同时挂到 Release `v1.3.1`） |
+| 安装包 | ✅ | Release `v1.3.1` 的 `HNReader-extension-1.3.1.zip` |
 | 版本号 | ✅ `1.3.1` | `extension/manifest.json` |
 | 权限 | ✅ 只剩 `news.ycombinator.com` + `hn-reader.whoareyou.ren` | `extension/manifest.json` |
 | 商店截图 | ⚠️ **待重拍**（见下） | `screenshots/jt1.png`、`jt2.png`、`jt3.png` |

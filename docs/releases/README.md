@@ -19,7 +19,7 @@ docs/releases/
 
 | 材料 | 位置 | 说明 |
 |---|---|---|
-| 安装包 | `extension/extension.zip`（同时挂到 GitHub Release） | 由 `extension/` 打包，**不要带顶层目录**，`manifest.json` 在根 |
+| 安装包 | GitHub Release 附件 `HNReader-extension-<版本>.zip` | 由 `release-artifacts` 工作流按 tag 从 `extension/` 打包；**不进仓库**，**不带顶层目录**，`manifest.json` 在根 |
 | 商店截图 | `docs/releases/v<ver>/screenshots/` | 命名 `jt1/jt2/jt3`；尺寸见下表 |
 | 新版本说明 | `docs/releases/v<ver>/whats-new.md` | 商店「What's new in this version」 |
 | 商店文案 | `docs/store-listing.md` | 名称/简介/详细描述/权限说明/隐私披露，长期维护，就地更新 |
@@ -37,20 +37,17 @@ docs/releases/
 
 ## 打包安装包
 
+安装包不进仓库，也不由人手工打包：推 `v*` tag 后，`.github/workflows/release-artifacts.yml` 会用该 tag 的源码
+构建 `HNReader-Setup-<版本>.exe`（Windows 本地服务）、`HNReader-extension-<版本>.zip`（商店包）和 `SHA256SUMS`，
+上传到同名 GitHub Release。
+
+需要本地验证时手工打一次即可，但**不要把产物提交进仓库**（`extension/extension.zip` 已在 `.gitignore` 里）：
+
 ```powershell
-# 与仓库里的做法一致：内容铺平，不带 extension/ 前缀，排除 zip 自身
-$stage = '.gotmp\ziproot'
-Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item extension $stage -Recurse
-Remove-Item "$stage\extension.zip" -ErrorAction SilentlyContinue
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory(
-  (Resolve-Path $stage).Path, (Join-Path $PWD 'extension\extension.zip'),
-  [System.IO.Compression.CompressionLevel]::Optimal, $false)
+Compress-Archive -Path extension\* -DestinationPath $env:TEMP\extension.zip -Force
 ```
 
-打包后自检：`manifest.json` 在 zip 根目录、`_locales/` 与 `i18n.js` 都在、条目里**没有** `extension.zip`。
-
+手工包自检：`manifest.json` 在 zip 根目录、`_locales/` 与 `i18n.js` 都在、条目里没有 `extension.zip`。
 ## 新版本目录怎么建
 
 1. `New-Item -ItemType Directory docs\releases\v<ver>\screenshots -Force`

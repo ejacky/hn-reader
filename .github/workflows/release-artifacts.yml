@@ -102,7 +102,7 @@ jobs:
           if (-not (Test-Path $exe)) { throw "$exe was not produced" }
           Get-Item $exe | Select-Object Name, Length
 
-      - name: Package extension
+      - name: Package extension (versioned file name)
         shell: pwsh
         run: |
           $stage = Join-Path $env:RUNNER_TEMP 'ext'
@@ -111,14 +111,14 @@ jobs:
           Remove-Item (Join-Path $stage 'extension.zip') -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force dist | Out-Null
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            $stage, (Join-Path $PWD 'dist/extension.zip'))
-          Get-Item dist/extension.zip | Select-Object Name, Length
+          $zip = Join-Path $PWD "dist/HNReader-extension-$env:VERSION.zip"
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip)
+          Get-Item $zip | Select-Object Name, Length
 
       - name: Write SHA256SUMS
         shell: pwsh
         run: |
-          $files = @("installer/HNReader-Setup-$env:VERSION.exe", 'dist/extension.zip')
+          $files = @("installer/HNReader-Setup-$env:VERSION.exe", "dist/HNReader-extension-$env:VERSION.zip")
           $lines = foreach ($f in $files) {
             $h = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower()
             "$h  $(Split-Path $f -Leaf)"
@@ -133,5 +133,5 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create $env:TAG --title $env:TAG --generate-notes
           }
-          gh release upload $env:TAG "installer/HNReader-Setup-$env:VERSION.exe" dist/extension.zip dist/SHA256SUMS --clobber
+          gh release upload $env:TAG "installer/HNReader-Setup-$env:VERSION.exe" "dist/HNReader-extension-$env:VERSION.zip" dist/SHA256SUMS --clobber
           gh release view $env:TAG --json assets --jq '.assets[] | "\(.name) \(.size)"'
