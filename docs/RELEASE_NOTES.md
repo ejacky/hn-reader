@@ -1,3 +1,21 @@
+# Unreleased
+
+v1.3.2 之后合入、尚未随版本发布的变化。发版时把这一段改名成
+`# HN Reader v<版本> — <标题>`，补上 `## Release Title`，再在 `docs/releases/v<版本>/` 建目录。
+
+## Release Notes
+
+### Infrastructure
+
+- **Staging now deploys on every merge to `main`.** Before this, staging only followed
+  feature branches, so the result of a merge — including how a conflict was resolved —
+  was never executed anywhere before it reached production. Feature branches still
+  deploy for pre-merge checks; tags do not deploy automatically (use
+  `gh workflow run deploy-staging.yml --ref v<tag>` when a specific tag needs to be
+  verified).
+
+---
+
 # HN Reader v1.3.2 — store metadata alignment
 
 ## Release Title
