@@ -1,7 +1,7 @@
 # Store Listing Materials
 
 > Chrome Web Store / Edge Add-ons submission text. Keep in sync with `manifest.json` and `PRIVACY.md`.
-> Screenshots: `../assets/screen1.png`, `screen2.png`, `screen3.png` (replace with current UI).
+> 每次发版的材料（安装包、截图、新版本说明）在 [`releases/`](releases/README.md)，一次发版一个目录。
 
 ---
 
@@ -129,12 +129,21 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ### 2026-10-22 — 云服务上线材料更新
 
-- 版本提升至 1.3.0，界面英文化，默认云模式；
+- 版本提升至 1.2.0，默认云模式；
 - 新增 `https://hn-reader.whoareyou.ren/*` 权限及说明；
 - 隐私政策改为覆盖云模式（数据收集、用途、保留期、导出/删除、LLM 提供商）；
 - 更新数据用途披露；
 - 移除“必须自建本地服务”的描述，保留本地模式为可选项；
 - 移除 Pro 升级入口（首发免费版，支付接入后再恢复）。
+
+### 2026-11-03 — 1.3.0 界面英文化
+
+- 版本提升至 1.3.0；
+- 界面默认跟随浏览器语言（`_locales`，`en` 为默认目录、`zh_CN` 保留），设置里可显式切换；
+- 摘要语言默认跟随界面语言；
+- 预加载状态显式化，失败条目显示原因；
+- 权限与数据用途披露**无变化**；
+- 发版材料见 [`releases/v1.3.0/`](releases/v1.3.0/README.md)。
 
 ---
 
@@ -146,7 +155,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 - [x] 数据用途披露已填写
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
-- [ ] 截图已更新（`../assets/screen1.png`、`screen2.png`、`screen3.png`）
+- [ ] 截图已更新（`releases/v1.3.0/screenshots/`，见该目录 README 的「提交前建议重拍」）
 - [ ] 商店图标已打包（`extension/icons/` 16×16, 48×48, 128×128）
 - [ ] 支持邮箱已替换为可用地址
 - [ ] 开发者/公司名已填写
