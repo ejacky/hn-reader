@@ -145,7 +145,7 @@ CLOUD_BASE_URL: 'http://localhost:8080'
 完整的容器、Caddy、网络、备份与回滚说明见 [deploy/h43/README.md](deploy/h43/README.md)。
 
 staging：`https://test.hn-reader.whoareyou.ren`，与生产同机但完全隔离（独立库/容器/网络别名/IP 白名单），
-推 `dev`/`fix/**`/`feat/**` 由 GitHub Actions 自动部署，见 [deploy/h43-test/README.md](deploy/h43-test/README.md)。
+推 `main`（合并即部署）或 `dev`/`fix/**`/`feat/**`（合并前预验）由 GitHub Actions 自动部署，见 [deploy/h43-test/README.md](deploy/h43-test/README.md)。
 
 ## 技术栈
 

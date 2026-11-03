@@ -27,7 +27,7 @@ Internet ──80/443──▶ edge (independent project, /root/edge)
 | loopback port | `127.0.0.1:8082` | `127.0.0.1:8083` |
 | site | `hn-reader.whoareyou.ren` | `test.hn-reader.whoareyou.ren` |
 | access | public (rate limits + quota) | IP allowlist |
-| lifecycle | manual deploy | `push` to `dev`/`fix/**`/`feat/**` deploys automatically |
+| lifecycle | manual deploy | `push` to `main` (and `dev`/`fix/**`/`feat/**` for pre-merge checks) deploys automatically |
 
 They share exactly one thing: the `edge` network. A staging deploy cannot
 restart, replace or reconfigure a production container.
@@ -82,8 +82,12 @@ gh run watch
 
 `.github/workflows/deploy-staging.yml` deploys on:
 
-- `push` to `dev`, `fix/**`, `feat/**` that touches `server/**`,
-  `deploy/h43-test/**`, `deploy/h43/Dockerfile` or the workflow itself;
+- `push` to `main`, `dev`, `fix/**`, `feat/**` that touches `server/**`,
+  `deploy/h43-test/**`, `deploy/h43/Dockerfile` or the workflow itself.
+  `main` matters: the merge result is what eventually ships, and a conflict
+  resolved during a merge has never run anywhere else;
+- tags are not deployed automatically — to check a specific tag, run
+  `gh workflow run deploy-staging.yml --ref v1.3.2`;
 - `workflow_dispatch` on any **pushed** branch or tag (the workflow file must
   exist on that ref; `--ref` does not accept a raw SHA).
 

@@ -7,12 +7,15 @@
 # production deployment does - cross-compiled, `-tags cloud`, uploaded, then
 # wrapped in the image on the host - and pushes it over SSH with a health gate.
 #
-# Production is not deployed from here. `main` is excluded on purpose.
+# `main` is included on purpose: the merge result is what eventually ships, and
+# resolving a conflict during a merge is exactly the kind of change that no feature
+# branch run has ever executed. Feature branches still deploy so a branch can be
+# checked before merging. Production is not deployed from this workflow.
 name: Deploy staging (h43)
 
 on:
   push:
-    branches: ['dev', 'fix/**', 'feat/**']
+    branches: ['main', 'dev', 'fix/**', 'feat/**']
     paths:
       - 'server/**'
       - 'deploy/h43-test/**'
@@ -41,8 +44,6 @@ env:
 
 jobs:
   deploy:
-    # Never feed staging from the production branch: main is deployed by hand.
-    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment:
