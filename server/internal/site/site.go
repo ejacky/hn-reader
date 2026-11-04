@@ -87,9 +87,13 @@ func Register(r *gin.Engine) {
 	r.HEAD("/assets/*filepath", assets)
 
 	// Browsers ask for /favicon.ico even when the page declares a PNG icon.
-	r.GET("/favicon.ico", func(c *gin.Context) {
+	// HEAD is registered as well: the redirect should answer a `curl -I` the same
+	// way it answers a browser, and gin does not route HEAD to a GET handler.
+	favicon := func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/assets/icon.png")
-	})
+	}
+	r.GET("/favicon.ico", favicon)
+	r.HEAD("/favicon.ico", favicon)
 }
 
 func (s *Sites) serve(name, cacheControl string) gin.HandlerFunc {

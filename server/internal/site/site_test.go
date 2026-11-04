@@ -113,12 +113,21 @@ func TestUnknownAssetIsNotFound(t *testing.T) {
 }
 
 func TestFaviconRedirectsToIcon(t *testing.T) {
-	w := get(t, newRouter(), "/favicon.ico")
-	if w.Code != http.StatusMovedPermanently {
-		t.Fatalf("GET /favicon.ico = %d, want 301", w.Code)
-	}
-	if loc := w.Header().Get("Location"); loc != "/assets/icon.png" {
-		t.Errorf("Location = %q, want /assets/icon.png", loc)
+	r := newRouter()
+
+	// Both methods: browsers use GET, but `curl -I` and link checkers use HEAD,
+	// and a 404 there reads as a broken route.
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		req := httptest.NewRequest(method, "/favicon.ico", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMovedPermanently {
+			t.Fatalf("%s /favicon.ico = %d, want 301", method, w.Code)
+		}
+		if loc := w.Header().Get("Location"); loc != "/assets/icon.png" {
+			t.Errorf("%s Location = %q, want /assets/icon.png", method, loc)
+		}
 	}
 }
 
