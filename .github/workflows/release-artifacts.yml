@@ -135,3 +135,90 @@ jobs:
           }
           gh release upload $env:TAG "installer/HNReader-Setup-$env:VERSION.exe" "dist/HNReader-extension-$env:VERSION.zip" dist/SHA256SUMS --clobber
           gh release view $env:TAG --json assets --jq '.assets[] | "\(.name) \(.size)"'
+
+  # 发版记录。close-issues 说的是 issue *做完了*，没人说是哪个版本发出去的，
+  # "v0.2.0 里有什么"就只能靠翻 git 历史。
+  #
+  # 只认标记：一个版本里的 issue，就是 Done #N 落在 previous..tag 区间里的那些，
+  # 和关闭用的是同一个信号。没有按关闭时间划窗口，也没有推断，所以 milestone
+  # 不会和它声称包含的 issue 打架。
+  #
+  # 这个仓库的 tag 是制品指针（生产部署是人工流水线），所以等 package 绿就够，
+  # 不等部署。
+  mark-release:
+    name: Put this release's issues in its milestone
+    needs: [package]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git describe 要读 tag，浅克隆一个都没有。
+          fetch-depth: 0
+
+      - name: fill the milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # 上一个版本是本次 tag 之前最近的那个 v* tag。第一次打 tag 时没有，
+          # 整个历史就是区间。
+          if previous="$(git describe --tags --abbrev=0 --match 'v*' "${TAG}^" 2>/dev/null)"; then
+            range="${previous}..${TAG}"
+          else
+            previous=""
+            range="${TAG}"
+          fi
+          echo "release ${TAG}: issues from ${previous:-the first commit}..${TAG}"
+
+          numbers="$(
+            git log --format='%B' "$range" |
+              grep -oiE '\bdone\b[[:space:]]*:?[[:space:]]*#[0-9]+' |
+              grep -oE '[0-9]+$' | sort -un || true
+          )"
+          if [ -z "$numbers" ]; then
+            echo "no Done #N marker in this release; nothing to record"
+            exit 0
+          fi
+
+          # 同名 milestone 开着的关着的都复用：提前规划的版本已经有它，再建一个
+          # 会把同一个版本劈成两半。
+          milestone="$(gh api "repos/$REPO/milestones?state=all&per_page=100" \
+            --jq ".[] | select(.title == \"$TAG\") | .number" || true)"
+          if [ -z "$milestone" ]; then
+            milestone="$(gh api "repos/$REPO/milestones" --method POST \
+              -f title="$TAG" --jq .number)"
+            echo "created the milestone $TAG (#$milestone)"
+          else
+            echo "the milestone $TAG already exists (#$milestone)"
+          fi
+
+          for number in $numbers; do
+            # 先读再写。规划时手工设过 milestone 的 issue 是人的决定，这个 job 不能
+            # 覆盖；红了之后重开的 issue，打个 tag 也不该把它算回版本里。
+            resource="$(gh api "repos/$REPO/issues/$number" \
+              --jq '"\(.state) \(.milestone.number // 0) \(.pull_request != null)"' 2>/dev/null)" ||
+              { echo "#$number does not exist; skipping"; continue; }
+            read -r state current is_pull_request <<< "$resource"
+            if [ "$is_pull_request" = "true" ]; then
+              echo "#$number is a pull request; skipping"
+              continue
+            fi
+            if [ "$state" != "closed" ]; then
+              echo "#$number is $state; skipping"
+              continue
+            fi
+            if [ "$current" != "0" ]; then
+              echo "#$number already has milestone $current; skipping"
+              continue
+            fi
+            gh api "repos/$REPO/issues/$number" --method PATCH \
+              -F milestone="$milestone" > /dev/null
+            echo "#$number -> $TAG"
+          done
