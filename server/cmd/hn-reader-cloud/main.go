@@ -14,6 +14,7 @@ import (
 
 	"hn-reader/internal/api"
 	"hn-reader/internal/config"
+	"hn-reader/internal/site"
 	"hn-reader/internal/storage"
 
 	"github.com/gin-gonic/gin"
@@ -53,6 +54,9 @@ func main() {
 
 	server := api.NewCloud(cfg, repo, fullVersion)
 	server.RegisterRoutes(r)
+	// The landing page lives in the same binary: the edge proxies the whole
+	// hostname here, so nothing else has to be deployed or reloaded for it.
+	site.Register(r)
 
 	port := cfg.Port
 	if port == "" {

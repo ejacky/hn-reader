@@ -13,6 +13,8 @@ edge (independent project, /root/edge, TLS + HSTS)
   │  (Docker network `edge`, shared with every application on this host)
   ▼
 hn-reader-server (Go, -tags cloud) ── hn-reader-db (PostgreSQL 16, no public port)
+  │  /            landing page (embedded, see below)
+  │  /api/*       JSON API used by the extension
 ```
 
 - The edge remains the only process bound to 80/443. It is its own compose
@@ -164,6 +166,37 @@ deleted; validate and reload again.
 The staging environment has its own fragment (`hn-reader-test.caddy`) and its own
 README: `deploy/h43-test/README.md`.
 
+## Landing page
+
+`https://hn-reader.whoareyou.ren/` serves the marketing page from this same
+container. `server/internal/site/` embeds `static/` and registers `/`,
+`/assets/*` and `/favicon.ico` in `cmd/hn-reader-cloud`, so the edge needs no
+`file_server`, no bind mount and no second site fragment: the existing
+`reverse_proxy` covers it.
+
+- **Copy** lives in `server/internal/site/static/index.html` (English). The
+  Chinese strings are the `ZH` table in `assets/site.js`, keyed by the
+  `data-i18n` attributes; English stays in the HTML so the page reads correctly
+  with JavaScript disabled.
+- **Install button**: `storeUrl` at the top of `assets/site.js`. While it is
+  empty every CTA points at GitHub Releases and the page shows the "listing in
+  review" note. Set it to the Chrome Web Store URL once the listing is live.
+- **Assets are embedded**: a copy or screenshot change needs
+  `go build -tags cloud` plus a container rebuild. There is no separate upload
+  step, and no way for the page to drift from the binary that is running.
+- **Preview without a database**: serve `server/internal/site/static/` with any
+  static file server — `/assets/...` resolves exactly as in production.
+- **Headers** are set by the handler: a `default-src 'none'` CSP, `nosniff` and
+  `Referrer-Policy`. The page loads no third-party script, font or CDN, so it
+  renders in mainland China without a proxy.
+
+Smoke test:
+
+```bash
+curl -fsS https://hn-reader.whoareyou.ren/ | head -5
+curl -fsSI https://hn-reader.whoareyou.ren/assets/site.css | head -3
+```
+
 ## Smoke tests
 
 ```bash
@@ -190,6 +223,9 @@ curl -sS -X POST http://127.0.0.1:8082/api/summarize/article \
 
 # public TLS
 curl -sSI https://hn-reader.whoareyou.ren/health
+
+# landing page (200 text/html, CSP present)
+curl -sSI https://hn-reader.whoareyou.ren/ | grep -iE 'HTTP/|content-type|content-security'
 ```
 
 ## Updating

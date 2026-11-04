@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HN Reader — AI summaries and personalized highlights for Hacker News</title>
+<meta name="description" content="One-click AI summaries on every Hacker News post and comment, plus highlights that learn what you actually read. Free, anonymous, no API key.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="canonical" href="https://hn-reader.whoareyou.ren/">
+<link rel="icon" href="/assets/icon.png" type="image/png" sizes="128x128">
+<link rel="stylesheet" href="/assets/site.css">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://hn-reader.whoareyou.ren/">
+<meta property="og:title" content="HN Reader — read Hacker News in half the time">
+<meta property="og:description" content="AI summaries on every post and comment, and highlights that learn what you actually read. Free, anonymous, no API key.">
+<meta property="og:image" content="https://hn-reader.whoareyou.ren/assets/hn-list.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="HN Reader — read Hacker News in half the time">
+<meta name="twitter:description" content="AI summaries on every post and comment, and highlights that learn what you actually read.">
+<meta name="twitter:image" content="https://hn-reader.whoareyou.ren/assets/hn-list.png">
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"HN Reader","url":"https://hn-reader.whoareyou.ren/","applicationCategory":"BrowserApplication","operatingSystem":"Chrome, Microsoft Edge","description":"AI summaries and personalized highlights for Hacker News.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="/" aria-label="HN Reader">
+      <img class="brand-mark" src="/assets/icon.png" width="22" height="22" alt="" decoding="async">
+      <span class="brand-name">HN Reader</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#how" data-i18n="nav.how">How it works</a>
+      <a href="#privacy" data-i18n="nav.privacy">Privacy</a>
+      <a href="#faq" data-i18n="nav.faq">FAQ</a>
+      <a href="https://github.com/ejacky/hn-reader" rel="noopener">GitHub</a>
+    </nav>
+    <div class="top-actions">
+      <button class="lang" type="button" id="lang-toggle" aria-label="Switch language">中文</button>
+      <a class="btn btn-primary btn-sm" data-cta="primary" href="https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm" rel="noopener">
+        <span data-cta-label data-i18n="cta.install">Add to Chrome</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <p class="eyebrow" data-i18n="hero.eyebrow">For people who read Hacker News every day</p>
+      <h1 data-i18n="hero.title">Read Hacker News in <span class="hl">half the time</span>.</h1>
+      <p class="lede" data-i18n="hero.lede">One-click AI summaries on every post and comment, plus highlights that learn what you actually read. No account, no API key — install it and open Hacker News.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" data-cta="primary" href="https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm" rel="noopener">
+          <span data-cta-label data-i18n="cta.install">Add to Chrome</span>
+        </a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/ejacky/hn-reader" rel="noopener" data-i18n="cta.source">View source on GitHub</a>
+      </div>
+      <p class="hero-meta" data-i18n="hero.meta">Chrome &amp; Edge · 50 free summaries a month · Export or delete your data anytime</p>
+      <p class="hero-note" id="store-note" hidden data-i18n="hero.note">The Chrome Web Store listing is in review. Grab the signed build from GitHub Releases in the meantime.</p>
+    </div>
+
+    <div class="wrap">
+      <figure class="shot">
+        <img src="/assets/hn-list.png" width="1280" height="800" alt="Hacker News list with a [summary] link next to every story and an expanded AI summary panel" fetchpriority="high" decoding="async">
+        <figcaption data-i18n="shot.caption">Every story gets a <code>[summary]</code> link. Click it and read the point, not the preamble.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <h2 data-i18n="features.title">What it does</h2>
+      <p class="section-lede" data-i18n="features.lede">Four things, done well. Nothing else is bolted on.</p>
+
+      <div class="grid">
+        <article class="card">
+          <h3 data-i18n="f1.title">Summaries where you already read</h3>
+          <p data-i18n="f1.body">A <code>[summary]</code> link next to every title, and <code>[summarize]</code> on every comment. Click, get the point in three lines, decide in one second.</p>
+        </article>
+
+        <article class="card">
+          <h3 data-i18n="f2.title">Highlights that learn</h3>
+          <p data-i18n="f2.body">The extension notices what you open, favorite and read closely, then marks the stories you are likely to care about with an orange border.</p>
+        </article>
+
+        <article class="card">
+          <h3 data-i18n="f3.title">Nothing to configure</h3>
+          <p data-i18n="f3.body">Cloud mode creates an anonymous account for you. No API key, no server, no sign-up form — 50 summaries a month, free, from the first click.</p>
+        </article>
+
+        <article class="card">
+          <h3 data-i18n="f4.title">Yours to delete</h3>
+          <p data-i18n="f4.body">No name, no email. Export your data or wipe the account from the popup. Want it fully local? Run the open-source server yourself.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="how">
+    <div class="wrap">
+      <h2 data-i18n="how.title">How it works</h2>
+      <p class="section-lede" data-i18n="how.lede">Three steps. The third one is just reading.</p>
+
+      <ol class="steps">
+        <li>
+          <span class="step-num" aria-hidden="true">01</span>
+          <h3 data-i18n="s1.title">Install the extension</h3>
+          <p data-i18n="s1.body">From the Chrome Web Store. Works in Chrome and Edge; it only runs on news.ycombinator.com.</p>
+        </li>
+        <li>
+          <span class="step-num" aria-hidden="true">02</span>
+          <h3 data-i18n="s2.title">Open Hacker News</h3>
+          <p data-i18n="s2.body">Summaries appear inline on the list and comment pages. Nothing else about the site changes.</p>
+        </li>
+        <li>
+          <span class="step-num" aria-hidden="true">03</span>
+          <h3 data-i18n="s3.title">Click, and read</h3>
+          <p data-i18n="s3.body">Your clicks teach the model what you care about. The highlighting gets sharper every day you use it.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="privacy">
+    <div class="wrap">
+      <h2 data-i18n="privacy.title">Privacy, in one screen</h2>
+      <p class="section-lede" data-i18n="privacy.lede">A reading tool should not need your identity. This one does not ask for it.</p>
+
+      <ul class="checks">
+        <li data-i18n="p1">An anonymous random token is your account — no name, no email, no password.</li>
+        <li data-i18n="p2">Article and comment text goes to the LLM provider only to generate the summary you asked for.</li>
+        <li data-i18n="p3">Export everything, or delete the account and its data, from the extension popup.</li>
+        <li data-i18n="p4">Prefer it fully local? The server is open source — run it on your own machine with your own key.</li>
+        <li data-i18n="p5">No ads, no data sales, no training on your reading.</li>
+      </ul>
+
+      <p class="checks-more">
+        <a href="https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md" rel="noopener" data-i18n="privacy.link">Read the full privacy policy →</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="pricing">
+    <div class="wrap">
+      <h2 data-i18n="price.title">Free, and honest about the limits</h2>
+      <p class="section-lede" data-i18n="price.lede">One plan today. A paid tier with a larger quota is on the way; nothing you use now gets taken away.</p>
+
+      <div class="price-card">
+        <div class="price-head">
+          <span class="price-amount">$0</span>
+          <span class="price-period" data-i18n="price.period">per month, forever</span>
+        </div>
+        <ul class="price-list">
+          <li data-i18n="price.l1">50 AI summaries every month</li>
+          <li data-i18n="price.l2">Summaries already generated stay readable after the quota runs out</li>
+          <li data-i18n="price.l3">Personalized highlights and recommendations</li>
+          <li data-i18n="price.l4">Local mode: unlimited, at your own LLM cost</li>
+          <li data-i18n="price.l5">Data export and account deletion</li>
+        </ul>
+        <a class="btn btn-primary btn-lg btn-block" data-cta="primary" href="https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm" rel="noopener">
+          <span data-cta-label data-i18n="cta.install">Add to Chrome</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap">
+      <h2 data-i18n="faq.title">Questions</h2>
+      <div class="faq">
+        <details>
+          <summary data-i18n="q1">Is this affiliated with Hacker News or Y Combinator?</summary>
+          <p data-i18n="a1">No. HN Reader is an independent extension that runs on top of news.ycombinator.com. It is not endorsed by Y Combinator.</p>
+        </details>
+
+        <details>
+          <summary data-i18n="q2">Do I need an OpenAI key?</summary>
+          <p data-i18n="a2">No. Cloud mode is included: the extension gets an anonymous token and calls our service. If you would rather use your own model, switch to local mode and point the extension at your own server.</p>
+        </details>
+
+        <details>
+          <summary data-i18n="q3">Which browsers are supported?</summary>
+          <p data-i18n="a3">Chrome and Edge, both Manifest V3. Firefox is not supported yet.</p>
+        </details>
+
+        <details>
+          <summary data-i18n="q4">What happens when the 50 summaries run out?</summary>
+          <p data-i18n="a4">Summaries you already generated keep opening from cache. The quota resets every month, and you can keep going immediately by switching to local mode with your own key.</p>
+        </details>
+
+        <details>
+          <summary data-i18n="q5">Where is my reading data stored?</summary>
+          <p data-i18n="a5">Reading signals and generated summaries live on our PostgreSQL in Shanghai until you delete them. Article text is not stored long-term. Full details are in the privacy policy.</p>
+        </details>
+
+        <details>
+          <summary data-i18n="q6">Can I self-host it?</summary>
+          <p data-i18n="a6">Yes. The backend is Go with SQLite for local mode; build it from the repository and the extension will talk to http://localhost:8080.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <p class="foot-brand"><img class="brand-mark" src="/assets/icon.png" width="22" height="22" alt="" decoding="async"> HN Reader</p>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/ejacky/hn-reader" rel="noopener">GitHub</a>
+      <a href="https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md" rel="noopener" data-i18n="foot.privacy">Privacy</a>
+      <a href="https://github.com/ejacky/hn-reader/issues" rel="noopener" data-i18n="foot.support">Support</a>
+    </nav>
+    <p class="foot-note" data-i18n="foot.note">Independent project. Not affiliated with Y Combinator or Hacker News.</p>
+  </div>
+</footer>
+
+<script src="/assets/site.js" defer></script>
+</body>
+</html>

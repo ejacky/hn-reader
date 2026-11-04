@@ -14,6 +14,7 @@
 | **版本** | 1.3.2（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
 | **默认语言** | English |
+| **商店链接** | https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm |
 
 ---
 
@@ -140,7 +141,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 | 字段 | 内容 |
 |------|------|
 | **开发者/公司名** | （提交前填写） |
-| **网站** | https://github.com/ejacky/hn-reader |
+| **网站** | https://hn-reader.whoareyou.ren |
 | **隐私政策链接** | https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md |
 | **支持邮箱** | support@whoareyou.ren（提交前替换为可用邮箱） |
 

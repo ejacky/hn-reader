@@ -37,6 +37,7 @@ hn-reader/
 │       ├── summarizer/ # LLM 总结
 │       ├── storage/    # SQLite / PostgreSQL 数据层
 │       ├── preloader/  # 预加载
+│       ├── site/       # 落地页（go:embed，随云服务二进制发布）
 │       └── config/     # 配置管理
 └── deploy/h43/         # 生产部署（docker-compose / Caddy / 备份）
 └── deploy/h43-test/    # staging 部署（test.hn-reader.whoareyou.ren，CI 自动部署）
@@ -51,8 +52,9 @@ hn-reader/
 3. 访问 [news.ycombinator.com](https://news.ycombinator.com)，点击文章旁的 `[summary]` 即可使用
 4. 每月免费额度用完后，扩展会引导你升级到 Pro
 
-> 当前云服务域名：`https://hn-reader.whoareyou.ren`（staging 为 `https://test.hn-reader.whoareyou.ren`，
-> 联调时用 `hn_reader_cloud_url` 覆盖键切换，见 [deploy/h43-test/README.md](deploy/h43-test/README.md)）
+> 当前云服务域名：`https://hn-reader.whoareyou.ren`（同域 `/` 是产品落地页，`/api/*` 是扩展调用的接口；
+> staging 为 `https://test.hn-reader.whoareyou.ren`，联调时用 `hn_reader_cloud_url` 覆盖键切换，
+> 见 [deploy/h43-test/README.md](deploy/h43-test/README.md)）
 
 ### 方式二：本地服务
 
