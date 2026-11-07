@@ -91,6 +91,9 @@
   "switchToCloud": {
     "message": "Switch back to cloud"
   },
+  "openHackerNews": {
+    "message": "Open Hacker News"
+  },
 
   "statsTitle": {
     "message": "Your Stats"

@@ -1,9 +1,21 @@
 const DOWNLOAD_URL = 'https://github.com/ejacky/hn-reader/releases/latest';
+const HN_URL = 'https://news.ycombinator.com/';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await ensureI18n();
 
   const statusEl = document.getElementById('status');
+
+  const openHnLink = document.getElementById('openHnLink');
+  openHnLink.addEventListener('click', (e) => {
+    // 保留 Ctrl/Cmd/Shift/中键的原生新标签行为
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    chrome.tabs.create({ url: HN_URL }, () => {
+      // 出错时保留 popup，让用户可以再点一次
+      if (!chrome.runtime.lastError) window.close();
+    });
+  });
 
   // Cloud elements
   const cloudSection = document.getElementById('cloudSection');

@@ -5,6 +5,12 @@ v1.3.2 之后合入、尚未随版本发布的变化。发版时把这一段改�
 
 ## Release Notes
 
+### Extension
+
+- The popup header now has a one-click **Open Hacker News** link. It opens
+  `https://news.ycombinator.com/` in a new tab and works in both cloud and local
+  modes, including when the service is unreachable or the quota is exhausted.
+
 ### Infrastructure
 
 - **Staging now deploys on every merge to `main`.** Before this, staging only followed
