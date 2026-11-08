@@ -142,8 +142,8 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 |------|------|
 | **开发者/公司名** | （提交前填写） |
 | **网站** | https://hn-reader.whoareyou.ren |
-| **隐私政策链接** | https://ejacky.github.io/hn-reader/（商店实际链接；内容需与 [PRIVACY.md](PRIVACY.md) 同步） |
-| **支持邮箱** | support@whoareyou.ren（提交前替换为可用邮箱） |
+| **隐私政策链接** | https://gist.github.com/ejacky/a5b2e4c72d3ccfbc303b637fb9bdf450（公开 gist；内容由 [PRIVACY.md](PRIVACY.md) 同步，更新用 `gh gist edit a5b2e4c72d3ccfbc303b637fb9bdf450 --filename PRIVACY.md docs/PRIVACY.md`） |
+| **支持邮箱** | ejacky001@gmail.com（与商店公开开发者邮箱一致） |
 
 ---
 
@@ -187,14 +187,14 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 上架检查清单
 
-- [x] `manifest.json` 版本号已更新（`1.3.2`）
+- [x] `manifest.json` 版本号已更新（`1.3.3`）
 - [x] 云 API 域名权限已声明并说明
-- [x] 隐私政策已覆盖云模式，链接路径正确
-- [x] 数据用途披露已填写
+- [x] 隐私政策已覆盖云模式，公开链接为 gist
+- [ ] 数据用途披露已填写（商店仍显示“不收集”，待 #24 后台修正）
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
 - [ ] 截图已更新（`releases/v1.3.1/screenshots/`，见该目录 README 的「提交前建议重拍」）
 - [ ] 商店图标已打包（`extension/icons/` 16×16, 48×48, 128×128）
-- [ ] 支持邮箱已替换为可用地址
+- [x] 支持邮箱已替换为可用地址（`ejacky001@gmail.com`）
 - [ ] 开发者/公司名已填写
-- [ ] 发布说明已更新（`RELEASE_NOTES.md`）
+- [x] 发布说明已更新（`RELEASE_NOTES.md`）

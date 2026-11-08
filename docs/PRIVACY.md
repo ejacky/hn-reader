@@ -1,6 +1,6 @@
 # HN Reader Privacy Policy
 
-**Last updated:** October 22, 2026
+**Last updated:** November 8, 2026
 
 HN Reader is a Chrome extension that adds AI summaries and reading recommendations to Hacker News. It can run in **Cloud mode** (default, no setup) or **Local mode** (you host the server and keep the data yourself).
 
@@ -77,6 +77,6 @@ We may update this policy. Material changes will be reflected in the "Last updat
 
 ## Contact
 
-Questions or data requests: **support@whoareyou.ren** (replace with the production support address before store submission).
+Questions or data requests: **ejacky001@gmail.com** (the same public developer contact shown on the Chrome Web Store listing).
 
 HN Reader is an independent project. Hacker News is a service of Y Combinator; this extension is not affiliated with or endorsed by Y Combinator.
