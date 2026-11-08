@@ -142,7 +142,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 |------|------|
 | **开发者/公司名** | （提交前填写） |
 | **网站** | https://hn-reader.whoareyou.ren |
-| **隐私政策链接** | https://gist.github.com/ejacky/a5b2e4c72d3ccfbc303b637fb9bdf450（公开 gist；内容由 [PRIVACY.md](PRIVACY.md) 同步，更新用 `gh gist edit a5b2e4c72d3ccfbc303b637fb9bdf450 --filename PRIVACY.md docs/PRIVACY.md`） |
+| **隐私政策链接** | 商店实际填写：https://ejacky.github.io/hn-reader/（2026-11-08 已更新为云模式版本）；镜像：https://gist.github.com/ejacky/a5b2e4c72d3ccfbc303b637fb9bdf450。内容以 [PRIVACY.md](PRIVACY.md) 为准 |
 | **支持邮箱** | ejacky001@gmail.com（与商店公开开发者邮箱一致） |
 
 ---
@@ -196,7 +196,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 - [x] `manifest.json` 版本号已更新（`1.3.3`）
 - [x] 云 API 域名权限已声明并说明
 - [x] 隐私政策已覆盖云模式，公开链接为 gist
-- [ ] 商店后台「隐私政策网址」已改为 gist（2026-11-08 提交时仍是 `https://ejacky.github.io/hn-reader/`，该页停留在 2026-05-27 的本地模式版本）
+- [x] 商店「隐私政策网址」指向的页面已是云模式版本（`https://ejacky.github.io/hn-reader/`，2026-11-08 更新；审核中后台不可编辑，故未换成 gist）
 - [ ] 数据用途披露已填写（商店仍显示“不收集”，待 #24 后台修正）
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
