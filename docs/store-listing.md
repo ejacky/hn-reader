@@ -149,6 +149,12 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 审核历史
 
+### 2026-11-08 — 提交 1.3.3 审核
+
+- 版本 1.3.3，等待审核结果；
+- 随本次提交新增 1280×800 云模式截图（[`releases/v1.3.3/screenshots/jt1.png`](releases/v1.3.3/screenshots/jt1.png)）；
+- 隐私政策链接为公开 gist。
+
 ### 2026-06-03 — 首次审核被拒绝（Purple Potassium）
 
 **拒绝原因：** 请求但未使用 `activeTab` 权限。
@@ -193,7 +199,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 - [ ] 数据用途披露已填写（商店仍显示“不收集”，待 #24 后台修正）
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
-- [ ] 截图已更新（`releases/v1.3.1/screenshots/`，见该目录 README 的「提交前建议重拍」）
+- [x] 截图已更新（`releases/v1.3.3/screenshots/jt1.png`，1280×800）
 - [ ] 商店图标已打包（`extension/icons/` 16×16, 48×48, 128×128）
 - [x] 支持邮箱已替换为可用地址（`ejacky001@gmail.com`）
 - [ ] 开发者/公司名已填写
