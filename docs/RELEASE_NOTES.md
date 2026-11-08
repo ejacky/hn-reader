@@ -1,7 +1,8 @@
-# Unreleased
+# HN Reader v1.3.3 — popup first screen and Chinese variants
 
-v1.3.2 之后合入、尚未随版本发布的变化。发版时把这一段改名成
-`# HN Reader v<版本> — <标题>`，补上 `## Release Title`，再在 `docs/releases/v<版本>/` 建目录。
+## Release Title
+
+HN Reader v1.3.3 — first-screen popup, Traditional Chinese, and archived stats
 
 ## Release Notes
 
@@ -28,6 +29,19 @@ v1.3.2 之后合入、尚未随版本发布的变化。发版时把这一段改�
   deploy for pre-merge checks; tags do not deploy automatically (use
   `gh workflow run deploy-staging.yml --ref v<tag>` when a specific tag needs to be
   verified).
+- **Issue closing now covers extension-only pushes.** `close-issues` was extracted into
+  a reusable workflow called by both the cloud-server and extension-i18n pipelines after
+  their own checks; previously it only ran for server/deploy changes, so `Done #N` in an
+  extension commit never closed anything.
+
+### Cloud service
+
+- No server change in this release. Production `/health` stays at `1.3.2`; the `1.3.3`
+  extension works against the existing API.
+
+### Upgrade notes
+
+- Extension `1.3.3`; cloud `/health` reports `1.3.2` (unchanged).
 
 ---
 
