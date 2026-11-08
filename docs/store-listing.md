@@ -142,7 +142,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 |------|------|
 | **开发者/公司名** | （提交前填写） |
 | **网站** | https://hn-reader.whoareyou.ren |
-| **隐私政策链接** | https://github.com/ejacky/hn-reader/blob/main/docs/PRIVACY.md |
+| **隐私政策链接** | https://ejacky.github.io/hn-reader/（商店实际链接；内容需与 [PRIVACY.md](PRIVACY.md) 同步） |
 | **支持邮箱** | support@whoareyou.ren（提交前替换为可用邮箱） |
 
 ---
