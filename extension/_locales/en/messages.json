@@ -31,6 +31,25 @@
   "uiLanguageAuto": {
     "message": "Auto (browser)"
   },
+  "languageSettingsTitle": {
+    "message": "Language settings"
+  },
+  "languageSummary": {
+    "message": "Interface: $ui$ · Summary: $summary$",
+    "placeholders": {
+      "ui": { "content": "$1" },
+      "summary": { "content": "$2" }
+    }
+  },
+  "languageSummaryUiAuto": {
+    "message": "$name$ (browser)",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "summaryLanguageFollowShort": {
+    "message": "Same as interface"
+  },
   "summaryLanguageLabel": {
     "message": "Summary language"
   },
@@ -103,6 +122,12 @@
   },
   "statsTotalSignals": {
     "message": "Total signals:"
+  },
+  "statsToggle": {
+    "message": "Stats"
+  },
+  "statsLoadFailed": {
+    "message": "Could not load stats"
   },
 
   "serverUrlLabel": {

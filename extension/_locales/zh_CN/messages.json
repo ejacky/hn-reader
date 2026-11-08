@@ -31,6 +31,25 @@
   "uiLanguageAuto": {
     "message": "跟随浏览器"
   },
+  "languageSettingsTitle": {
+    "message": "语言设置"
+  },
+  "languageSummary": {
+    "message": "界面：$ui$ · 摘要：$summary$",
+    "placeholders": {
+      "ui": { "content": "$1" },
+      "summary": { "content": "$2" }
+    }
+  },
+  "languageSummaryUiAuto": {
+    "message": "$name$（跟随浏览器）",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "summaryLanguageFollowShort": {
+    "message": "跟随界面"
+  },
   "summaryLanguageLabel": {
     "message": "摘要语言"
   },
@@ -96,13 +115,19 @@
   },
 
   "statsTitle": {
-    "message": "Your Stats"
+    "message": "统计"
   },
   "recTitle": {
-    "message": "Recommendations"
+    "message": "推荐"
   },
   "statsTotalSignals": {
-    "message": "Total signals:"
+    "message": "信号总数："
+  },
+  "statsToggle": {
+    "message": "统计"
+  },
+  "statsLoadFailed": {
+    "message": "统计加载失败"
   },
 
   "serverUrlLabel": {

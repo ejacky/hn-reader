@@ -23,6 +23,7 @@ const CONFIG = {
     SERVER_URL: 'hn_reader_server_url',
     LANGUAGE: 'hn_reader_language',
     UI_LANGUAGE: 'hn_reader_ui_language',
+    LANGUAGE_OPEN: 'hn_reader_language_open',
     AUTO_PRELOAD: 'hn_reader_auto_preload'
   },
 

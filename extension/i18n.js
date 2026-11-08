@@ -42,10 +42,16 @@
     }
   }
 
-  /** Chrome 只有 en（默认）和 zh_CN 两套语言包，zh-TW/zh-HK 会回落到英文。 */
+  /** Chrome 只有 en（默认）和 zh_CN 两套语言包；所有 zh-* 都可以先用中文。 */
   function browserUiLang() {
     const locale = browserLocale();
-    return locale === 'zh-cn' || locale === 'zh-sg' ? 'zh' : 'en';
+    return locale.startsWith('zh') ? 'zh' : 'en';
+  }
+
+  /** Chrome 的 _locales 匹配能原生命中 zh_CN 的 locale；其余 zh-* 需要显式加载。 */
+  function hasNativeZhCatalog() {
+    const locale = browserLocale();
+    return locale === 'zh-cn' || locale === 'zh-sg';
   }
 
   function localeDir(lang) {
@@ -95,9 +101,22 @@
     state.setting = setting;
 
     if (setting === 'auto') {
+      const lang = browserUiLang();
       state.messages = null;
-      state.lang = browserUiLang();
-      return state.lang;
+      // Chrome 不会把 zh-TW/zh-HK 匹配到 _locales/zh_CN，会落到 default_locale=en。
+      // 这里显式加载中文包，否则会出现“英文界面 + 中文摘要”。
+      if (lang === 'zh' && !hasNativeZhCatalog()) {
+        const messages = await loadMessages('zh');
+        if (messages) {
+          state.messages = messages;
+        } else {
+          // 语言包读不到时宁可回英文，保持界面/摘要一致。
+          state.lang = 'en';
+          return 'en';
+        }
+      }
+      state.lang = lang;
+      return lang;
     }
 
     const messages = await loadMessages(setting);
@@ -105,9 +124,11 @@
       state.messages = messages;
       state.lang = setting;
     } else {
-      // 语言包读取失败时退回浏览器语言，避免界面空白。
+      // 语言包读取失败时退回浏览器语言，避免界面空白；但 zh-TW/zh-HK 的
+      // chrome.i18n 同样会落到英文，若把 lang 记成 zh 会造成界面/摘要不一致。
+      const fallback = browserUiLang();
       state.messages = null;
-      state.lang = browserUiLang();
+      state.lang = fallback === 'zh' && !hasNativeZhCatalog() ? 'en' : fallback;
     }
     return state.lang;
   }

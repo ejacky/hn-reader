@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const uiLanguageSelect = document.getElementById('uiLanguage');
   const summaryLanguageSelect = document.getElementById('summaryLanguage');
   const summaryLanguageWarning = document.getElementById('summaryLanguageWarning');
+  const languageToggle = document.getElementById('languageToggle');
+  const languageBody = document.getElementById('languageBody');
+  const languageSummary = document.getElementById('languageSummary');
+  const languageWarningBadge = document.getElementById('languageWarningBadge');
 
   function uiLanguageName() {
     return resolvedHtmlLang() === 'zh-CN' ? '中文' : 'English';
@@ -66,7 +70,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function updateSummaryWarning() {
+    const warning = t('summaryPreloadWarning');
     summaryLanguageWarning.hidden = !autoPreloadToggle.checked;
+    languageWarningBadge.hidden = !autoPreloadToggle.checked;
+    if (autoPreloadToggle.checked) {
+      languageWarningBadge.title = warning;
+    } else {
+      languageWarningBadge.removeAttribute('title');
+    }
+  }
+
+  // 折叠行只显示“当前是什么”，不重复展开区里的解释。
+  function languageSummaryText() {
+    const uiSetting = uiLanguageSelect.value;
+    const uiText = uiSetting === 'auto'
+      ? t('languageSummaryUiAuto', [uiLanguageName()])
+      : uiLanguageName();
+    const summarySetting = summaryLanguageSelect.value;
+    const summaryText = summarySetting === 'auto'
+      ? t('summaryLanguageFollowShort')
+      : summaryLanguageSelect.options[summaryLanguageSelect.selectedIndex].textContent;
+    return t('languageSummary', [uiText, summaryText]);
+  }
+
+  function updateLanguageSummary() {
+    languageSummary.textContent = languageSummaryText();
   }
 
   const uiLanguageResult = await chrome.storage.local.get([CONFIG.KEYS.UI_LANGUAGE]);
@@ -85,6 +113,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     : 'auto';
   updateSummaryFollowLabel();
   updateSummaryWarning();
+  updateLanguageSummary();
+
+  // 折叠状态：默认收起；记住用户上次的选择。
+  let languageOpen = false;
+  try {
+    const languageOpenResult = await chrome.storage.local.get([CONFIG.KEYS.LANGUAGE_OPEN]);
+    languageOpen = languageOpenResult[CONFIG.KEYS.LANGUAGE_OPEN] === true;
+  } catch (e) {
+    // storage 不可用时保持收起。
+  }
+
+  function setLanguageOpen(open, persist) {
+    languageOpen = open;
+    languageBody.hidden = !open;
+    languageToggle.setAttribute('aria-expanded', String(open));
+    if (persist) {
+      chrome.storage.local.set({ [CONFIG.KEYS.LANGUAGE_OPEN]: open }).catch(() => {});
+    }
+  }
+
+  setLanguageOpen(languageOpen, false);
+  languageToggle.addEventListener('click', () => setLanguageOpen(!languageOpen, true));
 
   summaryLanguageSelect.addEventListener('change', async () => {
     if (summaryLanguageSelect.value === 'auto') {
@@ -92,6 +142,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       await chrome.storage.local.set({ [CONFIG.KEYS.LANGUAGE]: summaryLanguageSelect.value });
     }
+    updateLanguageSummary();
     statusEl.textContent = t('statusSaved');
     statusEl.style.color = '#008000';
     setTimeout(() => statusEl.textContent = '', 2000);
@@ -250,30 +301,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function loadServerData() {
-    const statsSection = cfg.mode === 'cloud' ? document.getElementById('cloudStatsSection') : document.getElementById('localStatsSection');
-    const statsContent = cfg.mode === 'cloud' ? document.getElementById('cloudStatsContent') : document.getElementById('localStatsContent');
-    const recSection = cfg.mode === 'cloud' ? document.getElementById('cloudRecSection') : document.getElementById('localRecSection');
-    const recContent = cfg.mode === 'cloud' ? document.getElementById('cloudRecContent') : document.getElementById('localRecContent');
-
+  async function loadStats(mode) {
+    const content = document.getElementById(mode === 'cloud' ? 'cloudStatsContent' : 'localStatsContent');
     try {
-      const statsResp = await sendAction('getStats');
-      if (statsResp.ok) {
-        const stats = statsResp.data;
-        statsSection.style.display = 'block';
-        let html = `<p>${t('statsTotalSignals')} <strong>${stats.total_signals || 0}</strong></p>`;
-        if (stats.by_type) {
-          html += '<ul>';
-          for (const [type, count] of Object.entries(stats.by_type)) {
-            html += `<li>${type}: ${count}</li>`;
-          }
-          html += '</ul>';
+      const resp = await sendAction('getStats');
+      if (!resp.ok) throw new Error(resp.error || 'stats request failed');
+      const stats = resp.data;
+      let html = `<p>${t('statsTotalSignals')} <strong>${stats.total_signals || 0}</strong></p>`;
+      if (stats.by_type) {
+        html += '<ul>';
+        for (const [type, count] of Object.entries(stats.by_type)) {
+          html += `<li>${type}: ${count}</li>`;
         }
-        statsContent.innerHTML = html;
+        html += '</ul>';
       }
+      content.innerHTML = html;
+      return true;
     } catch (e) {
       console.error('stats fetch failed', e);
+      content.textContent = t('statsLoadFailed');
+      return false;
     }
+  }
+
+  // 统计默认封存：只有点开低权重按钮才请求，且同一 popup 会话内只请求一次。
+  function setupStatsToggle(mode) {
+    const toggle = document.getElementById(mode === 'cloud' ? 'cloudStatsToggle' : 'localStatsToggle');
+    const section = document.getElementById(mode === 'cloud' ? 'cloudStatsSection' : 'localStatsSection');
+    let loaded = false;
+    toggle.addEventListener('click', async () => {
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      if (open && !loaded) {
+        await loadStats(mode);
+        // 失败也算尝试过：展开区显示错误，不因反复点开而重复请求。
+        loaded = true;
+      }
+      toggle.setAttribute('aria-expanded', String(open));
+      section.hidden = !open;
+    });
+  }
+
+  async function loadServerData() {
+    const recSection = cfg.mode === 'cloud' ? document.getElementById('cloudRecSection') : document.getElementById('localRecSection');
+    const recContent = cfg.mode === 'cloud' ? document.getElementById('cloudRecContent') : document.getElementById('localRecContent');
 
     try {
       const recResp = await sendAction('getRecommendations', { limit: 5 });
@@ -295,11 +365,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function hideDataSections() {
-    ['cloudStatsSection', 'cloudRecSection', 'localStatsSection', 'localRecSection', 'quotaSection', 'quotaExhausted'].forEach(id => {
+    ['cloudRecSection', 'localRecSection', 'quotaSection', 'quotaExhausted'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
+    [['cloudStatsSection', 'cloudStatsToggle'], ['localStatsSection', 'localStatsToggle']].forEach(([sectionId, toggleId]) => {
+      const section = document.getElementById(sectionId);
+      if (section) section.hidden = true;
+      const toggle = document.getElementById(toggleId);
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    });
   }
+
+  setupStatsToggle('cloud');
+  setupStatsToggle('local');
 
   await refreshConnection();
 

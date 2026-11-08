@@ -10,6 +10,15 @@ v1.3.2 之后合入、尚未随版本发布的变化。发版时把这一段改�
 - The popup header now has a one-click **Open Hacker News** link. It opens
   `https://news.ycombinator.com/` in a new tab and works in both cloud and local
   modes, including when the service is unreachable or the quota is exhausted.
+- **Language settings are collapsed by default.** The collapsed row shows the
+  effective interface and summary language; the expanded state is remembered, and the
+  auto-load quota warning stays inside the section with a small badge when it applies.
+- **Traditional Chinese browsers get Chinese.** `zh-TW`, `zh-HK` and `zh-Hant` now
+  load the `zh_CN` catalog explicitly, because Chrome does not match those locales to
+  `_locales/zh_CN` and would otherwise fall back to English for both UI and summaries.
+- **Stats are archived.** The stats section is hidden behind a low-weight **Stats**
+  toggle at the bottom; no stats request is made when the popup opens, and the section
+  reuses its result for the rest of the popup session.
 
 ### Infrastructure
 

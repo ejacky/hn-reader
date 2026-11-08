@@ -344,6 +344,52 @@ button.secondary:hover {
   text-decoration: underline;
 }
 
+/* Archived stats: default hidden, revealed by a low-weight link-like button. */
+.archive-toggle {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.archive-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: #888;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.archive-toggle-btn:hover {
+  color: #ff6600;
+  text-decoration: underline;
+}
+
+.archive-toggle-btn:focus-visible {
+  outline: 1px solid #ff6600;
+  outline-offset: 2px;
+}
+
+.archive-toggle-chevron {
+  width: 4px;
+  height: 4px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform .15s ease;
+}
+
+.archive-toggle-btn[aria-expanded="true"] .archive-toggle-chevron {
+  transform: rotate(-135deg);
+}
+
+.section[hidden] {
+  display: none;
+}
+
 /* Preload toggle switch */
 .preload-toggle {
   display: flex;
@@ -420,10 +466,93 @@ button.secondary:hover {
 
 /* Language settings */
 .language-group {
-  padding: 8px 10px;
+  padding: 0;
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
+}
+
+.language-toggle {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px 6px;
+  background: none;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.language-toggle:focus-visible {
+  outline: 1px solid #ff6600;
+  outline-offset: -1px;
+}
+
+.language-toggle-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.language-toggle-title {
+  font-weight: bold;
+  font-size: 11px;
+}
+
+.language-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #b26a00;
+  border-radius: 50%;
+  color: #b26a00;
+  font-size: 9px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.language-warning-badge[hidden] {
+  display: none;
+}
+
+.language-toggle-chevron {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid #888;
+  border-bottom: 1.5px solid #888;
+  transform: rotate(45deg);
+  transition: transform .15s ease;
+  flex: 0 0 auto;
+}
+
+.language-toggle[aria-expanded="true"] .language-toggle-chevron {
+  transform: rotate(-135deg);
+}
+
+.language-toggle-summary {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: #888;
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.language-body {
+  padding: 2px 10px 8px;
+}
+
+.language-body[hidden] {
+  display: none;
 }
 
 .language-group .setting-row {
