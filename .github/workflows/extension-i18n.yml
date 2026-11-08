@@ -25,3 +25,13 @@ jobs:
 
       - name: Check locale catalogs
         run: node scripts/check-i18n.mjs
+
+  # extension-only 推送不会触发 cloud-server 的 paths，所以 close-issues 也要在
+  # 这里挂一份：check 绿之后才按 Done #N 关闭。
+  close-issues:
+    needs: [check]
+    if: github.ref == 'refs/heads/main' && needs.check.result == 'success'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/close-issues.yml

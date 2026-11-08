@@ -1,0 +1,63 @@
+# 可复用的 close-issues：由各个 push 工作流在自家检查绿后调用。
+#
+# 为什么不是单独一个 push workflow：关闭的前提是"这次推送的检查过了"。不同路径的
+# 推送由不同 workflow 负责（server 走 cloud-server，extension 走 extension-i18n），
+# 各自 needs 自己的检查 job，才能保证关闭发生在对应检查之后，而不是任意一个 workflow
+# 跑完就关。
+name: Close issues
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  close-issues:
+    name: Close the issues this push finishes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: close what the commit messages say they close
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # "Done #18"——唯一的标记。裸 "#18" 或 "Refs #18" 是提交在指一个它还没
+          # 做完的任务，按那些关就把"提及"变成了"改状态"。GitHub 自己的关键词刻意
+          # 不接受：这个 job 跑起来时 issue 早被那次推送关掉了，测没测都一样。
+          numbers="$(
+            jq -r '.commits[]?.message' "$GITHUB_EVENT_PATH" |
+              grep -oiE '\bdone\b[[:space:]]*:?[[:space:]]*#[0-9]+' |
+              grep -oE '[0-9]+$' | sort -un || true
+          )"
+          if [ -z "$numbers" ]; then
+            echo "no Done #N marker in this push; nothing to close"
+            exit 0
+          fi
+          echo "Done markers: $numbers"
+
+          for number in $numbers; do
+            # 先读再写。gh issue close 对 PR 编号会失败；已经关掉的必须原样放过，
+            # 这样重推（变基、重试）不会留下第二条评论。不存在的编号也不能拖垮
+            # 整个 job：提交信息是自由文本。
+            if ! resource="$(gh api "repos/$REPO/issues/$number" \
+                 --jq '.state + " " + (if .pull_request then "pull request" else "issue" end)' 2>/dev/null)"; then
+              echo "#$number does not exist in $REPO; skipping"
+              continue
+            fi
+            if [ "$resource" != "open issue" ]; then
+              echo "#$number is $resource; skipping"
+              continue
+            fi
+            gh issue close "$number" --repo "$REPO" --reason completed \
+              --comment "本推送的检查全部通过（提交 \`$HEAD_SHA\`，[CI 运行]($RUN_URL)），按提交信息里的 \`Done #$number\` 标记自动关闭。"
+            echo "#$number closed"
+          done
