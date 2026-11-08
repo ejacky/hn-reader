@@ -196,6 +196,7 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 - [x] `manifest.json` 版本号已更新（`1.3.3`）
 - [x] 云 API 域名权限已声明并说明
 - [x] 隐私政策已覆盖云模式，公开链接为 gist
+- [ ] 商店后台「隐私政策网址」已改为 gist（2026-11-08 提交时仍是 `https://ejacky.github.io/hn-reader/`，该页停留在 2026-05-27 的本地模式版本）
 - [ ] 数据用途披露已填写（商店仍显示“不收集”，待 #24 后台修正）
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
