@@ -11,7 +11,7 @@
 | 字段 | 内容 |
 |------|------|
 | **名称** | HN Reader - AI Reading Assistant |
-| **版本** | 1.3.2（与 `manifest.json` 保持一致） |
+| **版本** | 1.3.3（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
 | **默认语言** | English |
 | **商店链接** | https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm |

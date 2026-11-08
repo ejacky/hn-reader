@@ -1,3 +1,12 @@
+# Unreleased
+
+v1.3.3 之后合入、尚未随版本发布的变化。发版时把这一段改名成
+`# HN Reader v<版本> — <标题>`，补上 `## Release Title`，再在 `docs/releases/v<版本>/` 建目录。
+
+## Release Notes
+
+---
+
 # HN Reader v1.3.3 — popup first screen and Chinese variants
 
 ## Release Title
