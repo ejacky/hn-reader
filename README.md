@@ -173,3 +173,7 @@ staging：`https://test.hn-reader.whoareyou.ren`，与生产同机但完全隔�
 - 数据不出售、不用于广告或训练我们自己的模型
 - 弹窗内支持导出数据和删除云端账户；删除后用户数据级联清除，共享公开摘要缓存保留
 - 详细说明见 [docs/PRIVACY.md](docs/PRIVACY.md)
+
+## License
+
+MIT，见 [LICENSE](LICENSE)。可自由使用、修改、分发（含商用），保留版权声明即可。
