@@ -1,8 +1,10 @@
-# HN Reader - AI 个性化阅读助手
+# HN Reader
+
+**AI summaries and personalized highlights for Hacker News.** A Chrome extension that puts a `[summary]` link next to every story and comment, plus a Go backend — run it hosted, or self-hosted.
+
+[Install for Chrome](https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm) · [Landing page](https://hn-reader.whoareyou.ren) · [Privacy](docs/PRIVACY.md) · [Release notes](docs/RELEASE_NOTES.md)
 
 通过浏览器扩展 + 后端服务，在 Hacker News 页面注入 AI 总结按钮，并基于用户的隐式行为建立兴趣模型，辅助你判断哪些内容值得阅读。
-
-**v1.2 更新**：云服务完成上线加固（匿名限流、SSRF 防护、LLM 日预算/并发、共享摘要缓存、预加载配额、数据导出/删除）。云服务开箱即用，注重隐私的用户仍可切换为「本地服务」模式。
 
 ## 核心功能
 
