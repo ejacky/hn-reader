@@ -3,9 +3,15 @@ name: Build and Push Cloud Server
 on:
   push:
     branches: [main, dev]
+    # docs / AGENTS.md / README 也在这里：关闭 issue 的 close-issues 由本 workflow
+    # 在检查绿后调用，而一次纯文档的提交同样可能带着 Done #N。少了这三条，那样一次
+    # 推送既不会跑检查，也没有任何 workflow 会去关它。
     paths:
       - 'server/**'
       - 'deploy/**'
+      - 'docs/**'
+      - 'AGENTS.md'
+      - 'README.md'
       - '.github/workflows/cloud-server.yml'
   pull_request:
     paths:
