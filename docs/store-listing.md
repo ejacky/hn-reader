@@ -149,9 +149,15 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 审核历史
 
+### 2026-11-10 — 1.3.3 审核通过，已上线
+
+- 2026-11-08 提交的 1.3.3 审核通过，商店页面版本更新为 1.3.3；
+- 内容与提交一致：popup 首屏收敛（语言设置折叠、打开 HN 入口、统计封存），繁中浏览器（`zh-TW` / `zh-HK` / `zh-Hant`）使用 `zh_CN` 语言包；
+- 权限与数据用途披露**无变化**：仍为云模式披露，隐私政策链接为公开 gist。
+
 ### 2026-11-08 — 提交 1.3.3 审核
 
-- 版本 1.3.3，等待审核结果；
+- 版本 1.3.3，2026-11-10 审核通过；
 - 随本次提交新增 1280×800 云模式截图（[`releases/v1.3.3/screenshots/jt1.png`](releases/v1.3.3/screenshots/jt1.png)）；
 - 隐私政策链接为公开 gist。
 
