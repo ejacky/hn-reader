@@ -58,12 +58,18 @@ Function WriteResult
   ${If} $ResultFile == ""
     Return
   ${EndIf}
-  FileOpen $R1 "$ResultFile" w
+  ; Write a temporary file and rename it, so the main installer never observes
+  ; a half-written (or still-locked) result file.
+  StrCpy $R2 "$ResultFile.tmp"
+  Delete "$R2"
+  FileOpen $R1 "$R2" w
   ${If} ${Errors}
     Return
   ${EndIf}
   FileWrite $R1 $R0
   FileClose $R1
+  Delete "$ResultFile"
+  Rename "$R2" "$ResultFile"
 FunctionEnd
 
 ; $R0 must contain the message. Restart the old service if it was stopped but

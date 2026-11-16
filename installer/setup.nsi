@@ -213,7 +213,18 @@ Function MigrateLegacy
     ${EndIf}
   ${Loop}
 
-  FileOpen $R3 "$PLUGINSDIR\migrate-result.txt" r
+  ; The helper renames its temp result into place, but retry briefly in case the
+  ; filesystem is still settling.
+  StrCpy $R7 0
+  ${Do}
+    ClearErrors
+    FileOpen $R3 "$PLUGINSDIR\migrate-result.txt" r
+    ${IfNot} ${Errors}
+      ${ExitDo}
+    ${EndIf}
+    Sleep 200
+    IntOp $R7 $R7 + 1
+  ${LoopUntil} $R7 >= 25
   ${If} ${Errors}
     StrCpy $R0 "cannot open legacy migration result"
     Call WriteMigrationLog
