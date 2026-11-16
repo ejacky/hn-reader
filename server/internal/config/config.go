@@ -14,32 +14,33 @@ type Config struct {
 	LLMBaseURL   string
 	LLMAPIKey    string
 	LLMModel     string
+	DataDir      string // local data directory (database, .env, logs)
 	DatabasePath string // local SQLite path
 	DatabaseURL  string // cloud Postgres DSN
 	RedisURL     string // cloud Redis URL (reserved)
 
 	// Cloud hardening / cost controls.
-	TrustedProxies        []string
-	LLMDailyBudget        int
-	LLMMaxConcurrency     int
-	LLMTimeout            time.Duration
-	LLMMaxOutputTokens    int
+	TrustedProxies     []string
+	LLMDailyBudget     int
+	LLMMaxConcurrency  int
+	LLMTimeout         time.Duration
+	LLMMaxOutputTokens int
 	// LLMReasoningEffort is forwarded as reasoning_effort when non-empty.
 	// Summary work does not need chain-of-thought, so "none" is the recommended
 	// setting for reasoning models: it removes the empty-content failure mode
 	// and cuts output cost.
-	LLMReasoningEffort    string
-	FreeQuotaLimit        int
-	MaxBodyBytes          int64
-	SignupRatePerHour     int
-	SignupRatePerDay      int
-	APIRatePerMin         int
-	SummarizeRatePerMin   int
-	PreloadRatePerMin     int
-	PreloadMaxPerRequest  int
-	PreloadMaxPending     int
-	PreloadQueueSize      int
-	HNBaseURL             string
+	LLMReasoningEffort   string
+	FreeQuotaLimit       int
+	MaxBodyBytes         int64
+	SignupRatePerHour    int
+	SignupRatePerDay     int
+	APIRatePerMin        int
+	SummarizeRatePerMin  int
+	PreloadRatePerMin    int
+	PreloadMaxPerRequest int
+	PreloadMaxPending    int
+	PreloadQueueSize     int
+	HNBaseURL            string
 }
 
 // getEnv reads an environment variable or returns a default.
