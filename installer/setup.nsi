@@ -170,9 +170,16 @@ Function MigrateLegacy
 
   ; If this process is already elevated (CI, administrator shell), run the
   ; helper directly. Otherwise ShellExecute "runas" is what actually prompts UAC.
-  nsExec::ExecToStack 'net session'
+  ; "net session" is unreliable when the Server service is stopped, so check the
+  ; integrity SID instead (the SID strings are not localized).
+  nsExec::ExecToStack 'cmd /c whoami /groups | findstr /C:"S-1-16-12288" >nul'
   Pop $R0
   Pop $R1
+  ${If} $R0 != 0
+    nsExec::ExecToStack 'cmd /c whoami /groups | findstr /C:"S-1-16-16384" >nul'
+    Pop $R0
+    Pop $R1
+  ${EndIf}
   ${If} $R0 == 0
     ExecWait '"$PLUGINSDIR\legacy-cleanup.exe" /INI="$PLUGINSDIR\migrate.ini"'
     Pop $R0
@@ -188,21 +195,30 @@ Function MigrateLegacy
     ${EndIf}
     IntOp $R2 $R2 + 1
     ${If} $R2 >= 240
-      MessageBox MB_ICONSTOP|MB_OK "迁移旧版服务失败或未获得管理员授权。安装已中止，旧版本未被修改。"
+      ${IfNot} ${Silent}
+        MessageBox MB_ICONSTOP|MB_OK "迁移旧版服务失败或未获得管理员授权。安装已中止，旧版本未被修改。"
+      ${EndIf}
+      SetErrorLevel 1
       Abort
     ${EndIf}
   ${Loop}
 
   FileOpen $R3 "$PLUGINSDIR\migrate-result.txt" r
   ${If} ${Errors}
-    MessageBox MB_ICONSTOP|MB_OK "无法读取旧版迁移结果。安装已中止。"
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONSTOP|MB_OK "无法读取旧版迁移结果。安装已中止。"
+    ${EndIf}
+    SetErrorLevel 1
     Abort
   ${EndIf}
   FileRead $R3 $R4
   FileClose $R3
   StrCpy $R5 $R4 2
   ${If} $R5 != "ok"
-    MessageBox MB_ICONSTOP|MB_OK "迁移旧版服务失败：$R4"
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONSTOP|MB_OK "迁移旧版服务失败：$R4"
+    ${EndIf}
+    SetErrorLevel 1
     Abort
   ${EndIf}
 
