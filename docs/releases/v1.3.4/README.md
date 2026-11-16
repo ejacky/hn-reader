@@ -36,7 +36,7 @@
 - [x] `Installer smoke` 的 `fresh` / `legacy` 两个 job 绿
 - [x] `release-artifacts` 未触发（不打 tag）
 
-### Phase 2（Windows 实机）
+### Phase 2（Windows 实机，按 [`windows-test.md`](windows-test.md) 执行）
 
 - [ ] 从当前 1.1.0/1.3.3 服务版升级：只弹一次 UAC
 - [ ] 迁移后服务 `HNReader` 消失，数据库完整迁到 `%LOCALAPPDATA%\HN Reader`
