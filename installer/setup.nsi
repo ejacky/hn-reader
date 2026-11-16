@@ -26,6 +26,11 @@ Unicode true
 !ifndef SERVICE_NAME
   !define SERVICE_NAME "HNReader"
 !endif
+; NSIS on Windows resolves File paths with backslashes. The Linux build script
+; overrides this with a forward-slash path.
+!ifndef SERVER_EXE
+  !define SERVER_EXE "..\server\hn-reader.exe"
+!endif
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile "HNReader-Setup-${PRODUCT_VERSION}.exe"
@@ -341,7 +346,7 @@ Section "Install"
   Call BackupLocalData
 
   SetOutPath "$INSTDIR"
-  File /oname=hn-reader.exe "../server/hn-reader.exe"
+  File /oname=hn-reader.exe "${SERVER_EXE}"
 
   ; .env lives in the data directory from this version on.
   ${IfNot} ${FileExists} "$DataDir\.env"

@@ -44,7 +44,7 @@ echo "==> building legacy migration helper"
 echo "==> building installer"
 (
   cd "$ROOT/installer"
-  "$MAKENSIS" -INPUTCHARSET UTF8 -DPRODUCT_VERSION="$VERSION" setup.nsi
+  "$MAKENSIS" -INPUTCHARSET UTF8 -DPRODUCT_VERSION="$VERSION" -DSERVER_EXE=../server/hn-reader.exe setup.nsi
 )
 
 echo "==> artifacts"
