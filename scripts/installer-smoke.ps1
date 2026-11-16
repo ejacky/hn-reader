@@ -233,6 +233,13 @@ try {
         Test-Legacy
     }
     Write-Host "installer smoke ($Mode) passed"
+} catch {
+    $migrationLog = Join-Path $env:TEMP 'hn-reader-migrate.log'
+    if (Test-Path $migrationLog) {
+        Write-Host '--- migration log ---'
+        Get-Content $migrationLog | ForEach-Object { Write-Host $_ }
+    }
+    throw
 } finally {
     Remove-State
 }

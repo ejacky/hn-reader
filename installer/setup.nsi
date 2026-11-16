@@ -153,6 +153,14 @@ FunctionEnd
 ; ============================================
 ; Run the elevated migration helper and wait
 ; ============================================
+Function WriteMigrationLog
+  FileOpen $R6 "$TEMP\hn-reader-migrate.log" a
+  ${IfNot} ${Errors}
+    FileWrite $R6 "$R0$\r$\n"
+    FileClose $R6
+  ${EndIf}
+FunctionEnd
+
 Function MigrateLegacy
   IfSilent migrate_continue
     MessageBox MB_OKCANCEL|MB_ICONINFORMATION "检测到旧版 Windows 服务安装。安装程序需要一次管理员授权来停止并移除旧服务，并把数据库和配置迁移到当前用户目录。" IDOK migrate_continue
@@ -195,6 +203,8 @@ Function MigrateLegacy
     ${EndIf}
     IntOp $R2 $R2 + 1
     ${If} $R2 >= 240
+      StrCpy $R0 "timeout waiting for legacy migration result"
+      Call WriteMigrationLog
       ${IfNot} ${Silent}
         MessageBox MB_ICONSTOP|MB_OK "迁移旧版服务失败或未获得管理员授权。安装已中止，旧版本未被修改。"
       ${EndIf}
@@ -205,6 +215,8 @@ Function MigrateLegacy
 
   FileOpen $R3 "$PLUGINSDIR\migrate-result.txt" r
   ${If} ${Errors}
+    StrCpy $R0 "cannot open legacy migration result"
+    Call WriteMigrationLog
     ${IfNot} ${Silent}
       MessageBox MB_ICONSTOP|MB_OK "无法读取旧版迁移结果。安装已中止。"
     ${EndIf}
@@ -215,6 +227,8 @@ Function MigrateLegacy
   FileClose $R3
   StrCpy $R5 $R4 2
   ${If} $R5 != "ok"
+    StrCpy $R0 "migration failed: $R4"
+    Call WriteMigrationLog
     ${IfNot} ${Silent}
       MessageBox MB_ICONSTOP|MB_OK "迁移旧版服务失败：$R4"
     ${EndIf}
