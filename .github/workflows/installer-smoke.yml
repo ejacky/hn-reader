@@ -1,0 +1,147 @@
+name: Installer smoke
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'installer/**'
+      - 'server/cmd/hn-reader/**'
+      - 'server/internal/config/**'
+      - 'extension/manifest.json'
+      - 'scripts/installer-smoke.ps1'
+      - '.github/workflows/installer-smoke.yml'
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'server/cmd/hn-reader/**'
+      - 'server/internal/config/**'
+      - 'extension/manifest.json'
+      - 'scripts/installer-smoke.ps1'
+      - '.github/workflows/installer-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh:
+    name: Fresh install, upgrade, uninstall
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: server/go.sum
+
+      - name: Derive version from manifest
+        shell: pwsh
+        run: |
+          $v = (Get-Content extension/manifest.json -Raw | ConvertFrom-Json).version
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "manifest version '$v' is not x.y.z" }
+          "VERSION=$v" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "version: $v"
+
+      - name: Build local server (windows/amd64)
+        working-directory: server
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = '0'
+          $env:GOOS = 'windows'
+          $env:GOARCH = 'amd64'
+          go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$env:VERSION" -o hn-reader.exe ./cmd/hn-reader
+          Get-Item hn-reader.exe | Select-Object Name, Length
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress | Out-Null
+          $candidates = @(
+            'C:\Program Files (x86)\NSIS\makensis.exe',
+            'C:\Program Files\NSIS\makensis.exe'
+          ) + @((Get-Command makensis.exe -ErrorAction SilentlyContinue).Source)
+          $nsis = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $nsis) { throw 'makensis not found after choco install' }
+          "MAKENSIS=$nsis" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Build helper and installer
+        working-directory: installer
+        shell: pwsh
+        run: |
+          cmd /c "`"$env:MAKENSIS`" -INPUTCHARSET UTF8 legacy-cleanup.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "legacy helper build failed with $LASTEXITCODE" }
+          cmd /c "`"$env:MAKENSIS`" -INPUTCHARSET UTF8 /DPRODUCT_VERSION=$env:VERSION setup.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "installer build failed with $LASTEXITCODE" }
+          if (-not (Test-Path "HNReader-Setup-$env:VERSION.exe")) { throw 'installer was not produced' }
+
+      - name: Run fresh/upgrade/uninstall smoke
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/installer-smoke.ps1 -Mode fresh
+
+  legacy:
+    name: Legacy service migration
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: server/go.sum
+
+      - name: Derive version from manifest
+        shell: pwsh
+        run: |
+          $v = (Get-Content extension/manifest.json -Raw | ConvertFrom-Json).version
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "manifest version '$v' is not x.y.z" }
+          "VERSION=$v" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "version: $v"
+
+      - name: Build local server (windows/amd64)
+        working-directory: server
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = '0'
+          $env:GOOS = 'windows'
+          $env:GOARCH = 'amd64'
+          go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$env:VERSION" -o hn-reader.exe ./cmd/hn-reader
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress | Out-Null
+          $candidates = @(
+            'C:\Program Files (x86)\NSIS\makensis.exe',
+            'C:\Program Files\NSIS\makensis.exe'
+          ) + @((Get-Command makensis.exe -ErrorAction SilentlyContinue).Source)
+          $nsis = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $nsis) { throw 'makensis not found after choco install' }
+          "MAKENSIS=$nsis" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Build helper and installer
+        working-directory: installer
+        shell: pwsh
+        run: |
+          cmd /c "`"$env:MAKENSIS`" -INPUTCHARSET UTF8 legacy-cleanup.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "legacy helper build failed with $LASTEXITCODE" }
+          cmd /c "`"$env:MAKENSIS`" -INPUTCHARSET UTF8 /DPRODUCT_VERSION=$env:VERSION setup.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "installer build failed with $LASTEXITCODE" }
+
+      - name: Run legacy migration smoke
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/installer-smoke.ps1 -Mode legacy
+
+  # Installer-only pushes do not trigger the server or extension workflows, so
+  # this is the only place that can close "Done #N" for those commits.
+  close-issues:
+    needs: [fresh, legacy]
+    if: github.ref == 'refs/heads/main' && needs.fresh.result == 'success' && needs.legacy.result == 'success'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/close-issues.yml

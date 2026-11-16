@@ -1,4 +1,4 @@
-VERSION = 1.3.2
+VERSION = 1.3.4
 
 .PHONY: build run dev extension i18n-check store-copy clean install-service uninstall-service start-service release
 
@@ -23,7 +23,7 @@ store-copy:
 
 clean:
 	cd server && del hn-reader.exe hn-reader.db
-	cd installer && del HNReader-Setup-*.exe
+	cd installer && del HNReader-Setup-*.exe legacy-cleanup.exe
 
 install-service: build
 	@echo "Requires Administrator privileges"
@@ -36,6 +36,9 @@ uninstall-service: build
 start-service: build
 	cd server && .\hn-reader.exe -run-service
 
-release: build
+release:
+	cd server && go build -ldflags "-s -w -H windowsgui -X main.Version=$(VERSION)" -o hn-reader.exe ./cmd/hn-reader
+	cd installer && makensis -INPUTCHARSET UTF8 legacy-cleanup.nsi
 	cd installer && makensis -INPUTCHARSET UTF8 -DPRODUCT_VERSION=$(VERSION) setup.nsi
 	@echo "Installer: installer/HNReader-Setup-$(VERSION).exe"
+	@echo "Legacy helper: installer/legacy-cleanup.exe"
