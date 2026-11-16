@@ -65,6 +65,8 @@ HNReader-Setup-<版本>.exe /S /APIKEY=sk-... /BASEURL=https://api.deepseek.com 
 4. 复制成功后才 `sc delete`、删除旧程序文件与 HKLM 卸载键；
 5. 任一步失败会写 `error:...` 到结果文件，并尝试 `sc start` 恢复旧服务；主安装器看到非 `ok` 就中止，不覆盖安装。
 
+结果文件由 helper 先写 `.tmp` 再 rename，主安装器最多重试读取 5 秒；迁移失败时错误会写到 `%TEMP%\hn-reader-migrate.log`，静默安装也能在事后查。
+
 ## 测试
 
 Windows 上：
