@@ -11,7 +11,7 @@
 | 字段 | 内容 |
 |------|------|
 | **名称** | HN Reader - AI Reading Assistant |
-| **版本** | 1.3.3（与 `manifest.json` 保持一致） |
+| **版本** | 1.3.4（与 `manifest.json` 保持一致） |
 | **类别** | Productivity |
 | **默认语言** | English |
 | **商店链接** | https://chromewebstore.google.com/detail/hn-reader-ai-reading-assi/bjjgpeekaedbhcpglinhfcdkglmfmbkm |
@@ -149,6 +149,13 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 审核历史
 
+### 2026-11-16 — 准备 1.3.4（per-user 本地服务）
+
+- 版本 1.3.4，等待 Windows 实机迁移验证后提交；
+- 扩展变化：本地模式显示服务端版本，旧服务版本给出下载入口；
+- 安装器改为 per-user，商店权限与数据披露**无变化**；
+- 截图沿用 v1.3.3 的云模式首屏（本地模式才出现版本行）。
+
 ### 2026-11-10 — 1.3.3 审核通过，已上线
 
 - 2026-11-08 提交的 1.3.3 审核通过，商店页面版本更新为 1.3.3；
@@ -199,14 +206,14 @@ This extension does **not** use remote code. All JavaScript is bundled in the ex
 
 ## 上架检查清单
 
-- [x] `manifest.json` 版本号已更新（`1.3.3`）
+- [x] `manifest.json` 版本号已更新（`1.3.4`）
 - [x] 云 API 域名权限已声明并说明
 - [x] 隐私政策已覆盖云模式，公开链接为 gist
 - [x] 商店「隐私政策网址」指向的页面已是云模式版本（`https://ejacky.github.io/hn-reader/`，2026-11-08 更新；审核中后台不可编辑，故未换成 gist）
 - [ ] 数据用途披露已填写（商店仍显示“不收集”，待 #24 后台修正）
 - [x] 单一用途说明已更新
 - [x] 远程代码声明为 No
-- [x] 截图已更新（`releases/v1.3.3/screenshots/jt1.png`，1280×800）
+- [x] 截图已更新（沿用 `releases/v1.3.4/screenshots/jt1.png`，1280×800）
 - [ ] 商店图标已打包（`extension/icons/` 16×16, 48×48, 128×128）
 - [x] 支持邮箱已替换为可用地址（`ejacky001@gmail.com`）
 - [ ] 开发者/公司名已填写

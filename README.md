@@ -6,6 +6,8 @@
 
 通过浏览器扩展 + 后端服务，在 Hacker News 页面注入 AI 总结按钮，并基于用户的隐式行为建立兴趣模型，辅助你判断哪些内容值得阅读。
 
+**v1.3 更新**：扩展支持繁体中文、popup 首屏收敛、统计默认封存；本地服务从 v1.3.4 起改为 per-user 安装，数据放在用户目录，升级免 UAC、卸载默认保留数据。
+
 ## 核心功能
 
 - **文章总结**: 在 HN 列表页每篇文章旁点击 `[summary]`，获取 AI 生成的摘要和关键要点
@@ -58,15 +60,39 @@ hn-reader/
 > staging 为 `https://test.hn-reader.whoareyou.ren`，联调时用 `hn_reader_cloud_url` 覆盖键切换，
 > 见 [deploy/h43-test/README.md](deploy/h43-test/README.md)）
 
-### 方式二：本地服务
+### 方式二：本地服务（可选）
 
 适合注重隐私、希望数据完全本地化的用户。
+
+**推荐：Windows 安装包**
+
+1. 从 [Releases](https://github.com/ejacky/hn-reader/releases/latest) 下载 `HNReader-Setup-<版本>.exe`，双击安装。
+   - 新安装是 per-user 安装，**不需要管理员权限**；不要右键「以管理员身份运行」，否则会装到管理员账户下；
+   - 从 `1.3.3` 及更早的「Windows 服务」版本升级时，会弹一次 UAC 用于迁移旧服务与数据，之后升级不再需要。
+2. 安装位置与数据位置：
+   - 程序：`%LOCALAPPDATA%\Programs\HN Reader`
+   - 数据：`%LOCALAPPDATA%\HN Reader`，含 `hn-reader.db`、`.env`、`hn-reader.log`
+3. 安装完成后本地服务会立即启动；之后每次用户登录 Windows 都会自动在后台启动，不需要手动点击。
+4. 扩展中选择「使用本地服务」，输入 `http://localhost:8080`。
+
+卸载：Windows「设置 → 应用 → HN Reader Server」。
+卸载器默认**保留**数据库与 `.env`，并会明确询问；静默卸载 `uninstall.exe /S` 同样默认保留，只有 `uninstall.exe /S /DELETE_DATA=1` 才会删除数据。
+
+静默安装（供脚本使用）：
+
+```powershell
+.\HNReader-Setup-<版本>.exe /S /APIKEY=sk-... /BASEURL=https://api.deepseek.com /MODEL=deepseek-v4-pro /PORT=8080
+```
+
+已有 `.env` 时会保留原配置；升级前会自动把数据库和 `.env` 备份到 `%LOCALAPPDATA%\HN Reader\backups\`。
+
+**从源码运行（开发）**
 
 1. 配置 `.env`：
 
 ```bash
 cd server
-copy .env.example .env
+cp .env.example .env
 ```
 
 编辑 `.env`：
@@ -80,11 +106,13 @@ LLM_MODEL=gpt-4o-mini
 
 ```bash
 cd server
-go build -o hn-reader.exe .
+go build -o hn-reader.exe ./cmd/hn-reader
 .\hn-reader.exe
 ```
 
 3. 扩展中选择「使用本地服务」，输入 `http://localhost:8080`
+
+开发时默认把数据写在可执行文件同目录；可设置 `HN_READER_DATA_DIR` 指定别的位置。
 
 ### 使用
 
@@ -103,7 +131,8 @@ go build -o hn-reader.exe .
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | LLM API 地址 |
 | `LLM_API_KEY` | - | LLM API Key |
 | `LLM_MODEL` | `gpt-4o-mini` | 模型名称 |
-| `DB_PATH` | `./hn-reader.db` | SQLite 数据库路径 |
+| `HN_READER_DATA_DIR` | Windows：`%LOCALAPPDATA%\HN Reader`；其他：exe 同目录 | 数据目录（数据库、`.env`、日志） |
+| `DB_PATH` | `<数据目录>/hn-reader.db` | SQLite 数据库路径覆盖 |
 
 云服务额外配置（限流、LLM 日预算/并发、预加载队列、可信代理等）见 [deploy/h43/.env.example](deploy/h43/.env.example)。
 

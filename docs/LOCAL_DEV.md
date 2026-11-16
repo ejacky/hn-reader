@@ -122,6 +122,23 @@ CLOUD_BASE_URL: 'http://localhost:8080'
 
 ---
 
+## 本地数据目录
+
+本地服务的数据（`hn-reader.db`、`.env`、`hn-reader.log`）默认放在：
+
+- Windows：`%LOCALAPPDATA%\HN Reader`
+- Linux / macOS 开发：可执行文件同目录（`go run` 时是临时目录，建议显式设置下面的变量）
+
+开发时建议显式指定，避免把数据库写进构建目录：
+
+```bash
+export HN_READER_DATA_DIR="$PWD/.data"
+```
+
+`DB_PATH` 仍可单独覆盖数据库路径。从旧版升级时，如果新数据目录里没有数据库、而 exe 同目录有一份，服务端会自动复制过去；复制失败则继续使用旧路径并记录日志。
+
+---
+
 ## 调试技巧
 
 ### 查看 background service worker 日志

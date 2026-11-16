@@ -13,13 +13,14 @@ docs/releases/
     README.md              ← 材料清单（含状态、待办）
     whats-new.md           ← 商店「新版本说明」，可直接粘贴
     store-copy.txt         ← 可直接粘贴的纯文本，由 scripts/store-copy.mjs 生成
+  v1.3.4/                  ← per-user 本地服务（材料就绪，待 Windows 实机验证后发版）
 ```
 
 截图跟着产生它的那一版走：下一版重拍后放进新目录，旧目录的图不搬。
 
 已上架的版本不要删，旧的截图留在它自己的目录里；新版本目录里只放本次要交的材料。
 
-发布之间的改动先记在 `docs/RELEASE_NOTES.md` 顶部的 `Unreleased` 段；发版时把它改名成正式版本段（补 `## Release Title`），再建本目录。
+发布之间的改动先记在 `docs/RELEASE_NOTES.md` 顶部的版本段；发版时补 `## Release Title`，再建本目录。
 
 ## 每次发版要准备的东西
 

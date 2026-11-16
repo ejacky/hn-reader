@@ -1,9 +1,68 @@
-# Unreleased
+# HN Reader v1.3.4 — per-user local server
 
-v1.3.3 之后合入、尚未随版本发布的变化。发版时把这一段改名成
-`# HN Reader v<版本> — <标题>`，补上 `## Release Title`，再在 `docs/releases/v<版本>/` 建目录。
+## Release Title
+
+HN Reader v1.3.4 — per-user local server, safe upgrades, and version visibility
 
 ## Release Notes
+
+### Extension
+
+- **Local mode now shows the running server version.** The popup displays
+  `Local server vX.Y.Z` when it is connected to a local server.
+- **Older local servers get an update link.** If the server version is lower than
+  the extension version, the same row links to the latest GitHub release, so a
+  user who upgraded the extension but not the installer can see why.
+
+### Local server
+
+- **Local data moves to the user profile.** The database, `.env` and log now live
+  in `%LOCALAPPDATA%\HN Reader` instead of the program directory. The executable
+  is installed under `%LOCALAPPDATA%\Programs\HN Reader`.
+- **The startup log identifies the build.** It now prints
+  `HN Reader server vX.Y.Z ...`, plus the data directory and database path, so
+  troubleshooting no longer requires `curl /health` first.
+- **Manual binary upgrades keep their data.** If the new data directory has no
+  database but the old executable directory does, the server copies the database,
+  WAL/SHM files and `.env` across; if that copy fails it keeps using the old path
+  and logs why.
+
+### Installer
+
+- **Per-user installation, no service.** New installs do not create a Windows
+  service and do not ask for administrator rights. The server starts at install
+  time and again at every user logon through the HKCU Run entry.
+- **One-time migration from the old service install.** If a machine-wide 1.3.3 or
+  older install is detected, a small elevated helper stops and removes the
+  `HNReader` service, copies the database and `.env` to the per-user data
+  directory, and only then deletes the old files. This is the only UAC prompt;
+  later upgrades run with `/S` and no elevation.
+- **Uninstall keeps data by default.** The uninstaller asks before deleting the
+  database and `.env`; silent uninstall keeps them, and
+  `uninstall.exe /S /DELETE_DATA=1` is the explicit delete path.
+- **Upgrades back up the database first.** The installer stops the server, waits
+  for `hn-reader.exe` to really exit, copies the database (including WAL/SHM) and
+  `.env` to `%LOCALAPPDATA%\HN Reader\backups\<timestamp>\`, and aborts if the
+  backup fails. The five newest backups are kept.
+- **Service stop waits for the process.** The old code treated `sc query` exit
+  code 0 as "stopped"; the new code polls the process for up to 30 seconds and
+  aborts with a clear message instead of overwriting a binary that is still in
+  use.
+
+### Cloud service
+
+- No behaviour change. Production `/health` stays at `1.3.2`; this release ships
+  the local server and extension only.
+
+### Upgrade notes
+
+- From `1.3.3` or older with the Windows service: expect **one** UAC prompt during
+  the first v1.3.4 install, for the service removal/data migration. Every later
+  upgrade is user-level.
+- Local data remains compatible: the SQLite schema is unchanged; only its
+  directory moves.
+- The local server no longer runs before a user logs in. The extension only works
+  in a logged-in browser session, so normal use is unchanged.
 
 ---
 
