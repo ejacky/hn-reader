@@ -33,7 +33,7 @@
 - [x] `node scripts/check-i18n.mjs`
 - [x] `node scripts/check-popup.mjs`
 - [x] `scripts/build-windows.sh` 编译出安装包与 helper
-- [ ] `Installer smoke` 的 `fresh` / `legacy` 两个 job 绿
+- [x] `Installer smoke` 的 `fresh` / `legacy` 两个 job 绿
 - [x] `release-artifacts` 未触发（不打 tag）
 
 ### Phase 2（Windows 实机）
@@ -50,7 +50,7 @@
 - tag：待 Phase 2
 - Release：待 Phase 2
 - milestone：待 Phase 2 确认包含 #35–#40
-- CWS：若 1.3.3 已审核通过则提交 1.3.4；仍在审核则等待，不主动撤下 1.3.3
+- CWS：1.3.3 已于 2026-11-10 审核通过并上线；1.3.4 待 Windows 实机验证通过后再提交
 
 ## 备注
 
