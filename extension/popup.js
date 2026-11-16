@@ -34,6 +34,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saveLocalBtn = document.getElementById('saveLocalBtn');
   const switchToCloudBtn = document.getElementById('switchToCloudBtn');
   const localGuide = document.getElementById('localGuide');
+  const localVersionRow = document.getElementById('localVersionRow');
+  const localVersionText = document.getElementById('localVersionText');
+  const localUpdateLink = document.getElementById('localUpdateLink');
 
   // Connection
   const connIndicator = document.getElementById('connIndicator');
@@ -260,6 +263,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (cfg.mode === 'cloud') {
         await loadCloudMeta();
+        hideLocalVersion();
+      } else {
+        updateLocalVersion(info);
       }
       await loadServerData();
     } else {
@@ -270,8 +276,46 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (cfg.mode === 'local') {
         localGuide.style.display = 'block';
       }
+      hideLocalVersion();
       hideDataSections();
     }
+  }
+
+  function parseVersion(value) {
+    const match = String(value || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  }
+
+  function isOlderVersion(a, b) {
+    for (let i = 0; i < 3; i++) {
+      if (a[i] < b[i]) return true;
+      if (a[i] > b[i]) return false;
+    }
+    return false;
+  }
+
+  // 本地服务版本对比扩展版本：扩展更新而本地服务没跟着升级时给一个下载入口。
+  // 只在本地模式、连接成功且版本号可解析时展示。
+  function updateLocalVersion(info) {
+    const serverVersion = parseVersion(info && info.version);
+    if (cfg.mode !== 'local' || !serverVersion) {
+      hideLocalVersion();
+      return;
+    }
+    const extensionVersion = parseVersion(chrome.runtime.getManifest().version);
+    localVersionText.textContent = t('localServerVersion', [info.version]);
+    if (extensionVersion && isOlderVersion(serverVersion, extensionVersion)) {
+      localUpdateLink.textContent = t('localServerUpdate', [chrome.runtime.getManifest().version]);
+      localUpdateLink.hidden = false;
+    } else {
+      localUpdateLink.hidden = true;
+    }
+    localVersionRow.hidden = false;
+  }
+
+  function hideLocalVersion() {
+    localVersionRow.hidden = true;
+    localUpdateLink.hidden = true;
   }
 
   async function loadCloudMeta() {
@@ -375,6 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const toggle = document.getElementById(toggleId);
       if (toggle) toggle.setAttribute('aria-expanded', 'false');
     });
+    hideLocalVersion();
   }
 
   setupStatsToggle('cloud');

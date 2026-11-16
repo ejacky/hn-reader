@@ -111,6 +111,21 @@ body {
   background: #e65c00;
 }
 
+.server-version {
+  margin: 0 0 10px 0;
+  font-size: 11px;
+  color: #666;
+}
+
+.server-version a {
+  color: #ff6600;
+  margin-left: 6px;
+}
+
+.server-version[hidden] {
+  display: none;
+}
+
 #status {
   color: #008000;
   font-size: 11px;

@@ -186,6 +186,18 @@
   "localConnected": {
     "message": "本地服务已连接"
   },
+  "localServerVersion": {
+    "message": "本地服务 v$version$",
+    "placeholders": {
+      "version": { "content": "$1" }
+    }
+  },
+  "localServerUpdate": {
+    "message": "可升级到 v$version$，去下载",
+    "placeholders": {
+      "version": { "content": "$1" }
+    }
+  },
   "connectSuccess": {
     "message": "连接成功"
   },

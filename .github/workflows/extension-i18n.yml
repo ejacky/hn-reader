@@ -6,11 +6,13 @@ on:
     paths:
       - 'extension/**'
       - 'scripts/check-i18n.mjs'
+      - 'scripts/check-popup.mjs'
       - '.github/workflows/extension-i18n.yml'
   pull_request:
     paths:
       - 'extension/**'
       - 'scripts/check-i18n.mjs'
+      - 'scripts/check-popup.mjs'
       - '.github/workflows/extension-i18n.yml'
 
 jobs:
@@ -25,6 +27,9 @@ jobs:
 
       - name: Check locale catalogs
         run: node scripts/check-i18n.mjs
+
+      - name: Check popup version row in headless Chrome
+        run: node scripts/check-popup.mjs
 
   # extension-only 推送不会触发 cloud-server 的 paths，所以 close-issues 也要在
   # 这里挂一份：check 绿之后才按 Done #N 关闭。

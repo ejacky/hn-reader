@@ -114,6 +114,11 @@
 
   <!-- Local 模式视图 -->
   <div id="localSection" style="display:none;">
+    <p class="server-version" id="localVersionRow" hidden>
+      <span id="localVersionText"></span>
+      <a id="localUpdateLink" href="https://github.com/ejacky/hn-reader/releases/latest" target="_blank" rel="noopener" hidden></a>
+    </p>
+
     <div class="section">
       <label data-i18n="serverUrlLabel">Server URL</label>
       <input type="text" id="serverUrl" placeholder="http://localhost:8080" />

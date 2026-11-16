@@ -186,6 +186,18 @@
   "localConnected": {
     "message": "Local server connected"
   },
+  "localServerVersion": {
+    "message": "Local server v$version$",
+    "placeholders": {
+      "version": { "content": "$1" }
+    }
+  },
+  "localServerUpdate": {
+    "message": "v$version$ available — download",
+    "placeholders": {
+      "version": { "content": "$1" }
+    }
+  },
   "connectSuccess": {
     "message": "Connected"
   },
