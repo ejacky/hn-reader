@@ -154,11 +154,10 @@ FunctionEnd
 ; Run the elevated migration helper and wait
 ; ============================================
 Function MigrateLegacy
-  ${IfNot} ${Silent}
+  IfSilent migrate_continue
     MessageBox MB_OKCANCEL|MB_ICONINFORMATION "检测到旧版 Windows 服务安装。安装程序需要一次管理员授权来停止并移除旧服务，并把数据库和配置迁移到当前用户目录。" IDOK migrate_continue
     Abort
-    migrate_continue:
-  ${EndIf}
+  migrate_continue:
 
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
@@ -438,13 +437,12 @@ Section "Uninstall"
   ${If} $DeleteData == "1"
     StrCpy $R0 0
   ${Else}
-    ${IfNot} ${Silent}
-      MessageBox MB_YESNOCANCEL|MB_ICONQUESTION "是否保留本地数据（数据库与配置）？$\r$\n选择「是」保留，「否」删除；关闭窗口也视为保留。" /SD IDYES IDYES keep_data IDNO delete_data
-      Goto keep_data
-      delete_data:
-        StrCpy $R0 0
-      keep_data:
-    ${EndIf}
+    IfSilent keep_data
+    MessageBox MB_YESNOCANCEL|MB_ICONQUESTION "是否保留本地数据（数据库与配置）？$\r$\n选择「是」保留，「否」删除；关闭窗口也视为保留。" /SD IDYES IDYES keep_data IDNO delete_data
+    Goto keep_data
+    delete_data:
+      StrCpy $R0 0
+    keep_data:
   ${EndIf}
 
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "HNReader"
