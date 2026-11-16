@@ -199,7 +199,14 @@ function Test-Legacy {
 
     Write-Host '== legacy: stop service and hash =='
     sc.exe stop HNReader | Out-Null
-    Wait-ProcessGone
+    try {
+        Wait-ProcessGone 20
+    } catch {
+        Write-Host 'service did not stop gracefully; forcing'
+        Stop-Service -Name HNReader -Force -ErrorAction SilentlyContinue
+        Stop-HnReader
+        Wait-ProcessGone 15
+    }
     $legacyHash = (Get-FileHash -Algorithm SHA256 $legacyDb).Hash
 
     Write-Host '== legacy: migrate to per-user =='
